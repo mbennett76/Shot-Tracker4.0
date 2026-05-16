@@ -927,6 +927,46 @@ function GameSetup(props){
   );
 }
 
+// ── Rebound Popup ──────────────────────────────────────────────────────────────
+function ReboundPopup(props){
+  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound;
+  var isOppShot=shooter==='opp';
+  var title=isOppShot?'Opponent missed — who rebounded?':'Home missed — who rebounded?';
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
+        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
+        <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Rebound</div>
+        <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>{title}</div>
+        {onFloorPlayers.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No players on floor.</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
+          {onFloorPlayers.map(function(p){
+            var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+            var col=pc(p,pIdx);
+            return (
+              <button key={p.id} onClick={function(){onRebound('home-player',p.id);}}
+                style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',
+                  color:col,fontSize:26,fontWeight:900,cursor:'pointer',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                {p.number}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={function(){onRebound('opponent',null);}}
+          style={{width:'100%',padding:'13px',borderRadius:12,border:'2px solid '+T.t4,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',marginBottom:8}}>
+          🆚 Opponent
+        </button>
+        <button onClick={function(){onRebound('none',null);}}
+          style={{width:'100%',padding:'11px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t4,fontSize:12,cursor:'pointer',letterSpacing:1,fontWeight:600}}>
+          No Rebound
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Substitution Popup ─────────────────────────────────────────────────────────
 function SubPopup(props){
   var players=props.players,gs=props.gs,isGame=props.isGame,onClose=props.onClose,onToggle=props.onToggle;
@@ -970,12 +1010,12 @@ function SubPopup(props){
 }
 
 // ── Player Popup ───────────────────────────────────────────────────────────────
-var OPP_STAT_KEYS=['oReb','dReb','to','foul'];
+var OPP_STAT_KEYS=['oReb','dReb','to','foul','blk','stl','ast'];
 function PlayerPopup(props){
   var type=props.type,shotType=props.shotType,statKey=props.statKey;
   var onFloorPlayers=props.onFloorPlayers,players=props.players;
   var isGame=props.isGame,onPlayer=props.onPlayer,onOpponent=props.onOpponent,onCancel=props.onCancel;
-  var showOpp=isGame&&(type==='shot'||OPP_STAT_KEYS.indexOf(statKey)>-1);
+  var showOpp=isGame&&(type==='shot'||type==='stat');
   var gStat=type==='stat'?GSTATS.find(function(g){return g.key===statKey;}):null;
   var title=type==='shot'?('Who shot? · '+shotType):(gStat?gStat.label:statKey);
   return (
@@ -1058,6 +1098,8 @@ function Tracker(props){
   var playerPopup=playerPopupState[0],setPlayerPopup=playerPopupState[1];
   var awaitCourtState=useState(null);
   var awaitCourt=awaitCourtState[0],setAwaitCourt=awaitCourtState[1];
+  var awaitReboundState=useState(null);
+  var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -1177,6 +1219,7 @@ function Tracker(props){
     setNotice({label:(make?'✓ Make':'✗ Miss')+' · #'+(targetPlayer?targetPlayer.number:'?')+' · '+(isFT?'FT':sType),make:make});
     vib(50);setAwaitCourt(null);setMode(null);
     clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
+    if(!make&&isGame) setAwaitRebound({shooter:'home'});
   },[awaitCourt,isGame,pDrafts,gs,players]);
 
   function recordFT(make,targetPid){
@@ -1199,6 +1242,7 @@ function Tracker(props){
     setNotice({label:(make?'✓ Make':'✗ Miss')+' · #'+(targetPlayer?targetPlayer.number:'?')+' · Free Throw',make:make});
     vib(50);setMode(null);
     clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
+    if(!make&&isGame) setAwaitRebound({shooter:'home'});
   }
 
   function handleShotTypeBtn(stLabel){
@@ -1247,9 +1291,10 @@ function Tracker(props){
       setNotice({label:(make?'✓ Opp Make':'✗ Opp Miss')+' · '+label,make:make});
       vib(50);setMode(null);
       clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
+      if(!make) setAwaitRebound({shooter:'opp'});
     } else if(playerPopup.type==='stat'){
       var sk=playerPopup.statKey;
-      if(OPP_STAT_KEYS.indexOf(sk)>-1) handleOppStat(gs.q,sk,1);
+      handleOppStat(gs.q,sk,1);
     }
     setPlayerPopup(null);
   }
@@ -1290,6 +1335,28 @@ function Tracker(props){
       });
       return Object.assign({},g,{oppQs:newQs});
     });
+  }
+
+  function handleRebound(type,playerId){
+    // type: 'home-player' | 'opponent' | 'none'
+    // shooter: 'home' | 'opp' (from awaitRebound)
+    var shooter=awaitRebound?awaitRebound.shooter:'home';
+    setAwaitRebound(null);
+    if(type==='none') return;
+    if(type==='home-player'){
+      // home player gets rebound
+      var statKey=shooter==='home'?'oReb':'dReb';
+      handleStat(statKey,1,playerId);
+      var targetPlayer=players.find(function(p){return p.id===playerId;});
+      setNotice({label:(shooter==='home'?'O REB':'D REB')+' · #'+(targetPlayer?targetPlayer.number:'?'),make:true});
+      clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2000);
+    } else if(type==='opponent'){
+      // opponent gets rebound
+      var oppKey=shooter==='home'?'dReb':'oReb';
+      handleOppStat(gs.q,oppKey,1);
+      setNotice({label:(shooter==='home'?'Opp D REB':'Opp O REB'),make:false});
+      clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2000);
+    }
   }
 
   function handleUndo(){
@@ -1633,6 +1700,14 @@ function Tracker(props){
         onPlayer={handlePlayerSelect}
         onOpponent={handleOppFromPopup}
         onCancel={function(){setPlayerPopup(null);}}
+      />}
+
+      {/* Rebound popup */}
+      {awaitRebound&&isGame&&<ReboundPopup
+        shooter={awaitRebound.shooter}
+        onFloorPlayers={sortedActive}
+        players={players}
+        onRebound={handleRebound}
       />}
 
       {/* Substitution popup */}
