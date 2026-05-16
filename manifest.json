@@ -1,0 +1,23 @@
+{
+  "name": "ShotTracker 4.0",
+  "short_name": "ShotTracker",
+  "description": "Basketball practice and game shot tracker",
+  "start_url": "/Shot-tracker4.0/",
+  "scope": "/Shot-tracker4.0/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f5f7",
+  "theme_color": "#f5f5f7",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
