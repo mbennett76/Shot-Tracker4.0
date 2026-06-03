@@ -110,6 +110,13 @@ function calcPts(sh,ft){
 function oppQPts(q){return (q.fg2m||0)*2+(q.fg3m||0)*3+(q.ftm||0);}
 function todayStr(){return new Date().toISOString().slice(0,10);}
 function fmtDate(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});}
+function fmtDateShort(iso){return new Date(iso+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+function fmtTime12(t){if(!t) return '';var p=t.split(':'),h=parseInt(p[0]),m=parseInt(p[1]||0);var per=h>=12?'PM':'AM',dh=h>12?h-12:h===0?12:h;return dh+':'+(m<10?'0'+m:m)+' '+per;}
+function calcArrival(t,off){if(!t||!off) return '';var p=t.split(':'),h=parseInt(p[0]),m=parseInt(p[1]||0);var tot=h*60+m-parseInt(off);if(tot<0) tot+=1440;var ah=Math.floor(tot/60)%24,am=tot%60;var per=ah>=12?'PM':'AM',dh=ah>12?ah-12:ah===0?12:ah;return dh+':'+(am<10?'0'+am:am)+' '+per;}
+function mapsUrl(venue){return 'https://maps.google.com/?q='+encodeURIComponent(venue);}
+function emptyCoach(){return {name:'',email:'',cell:''};}
+function emptyEvent(type){return {id:uid(),type:type||'Game',date:todayStr(),time:'10:00',arrivalOffset:30,venue:'',opponent:'',homeAway:'Home',numPeriods:4,notes:'',createdAt:new Date().toISOString()};}
+function SKsched(id){return 'bball-sched-v6-'+id;}
 function hasDraftQ(qs){
   if(!Array.isArray(qs)) return false;
   return qs.some(function(q){
@@ -630,11 +637,12 @@ function SCard(props){
 // ── History View ───────────────────────────────────────────────────────────────
 function HistoryView(props){
   var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions,onDelSession=props.onDelSession;
-  var hvState=useState('overview');
+  var defaultSession=props.defaultSession||null;
+  var hvState=useState(defaultSession?'session':'overview');
   var hv=hvState[0],setHv=hvState[1];
   var hpState=useState(null);
   var hpData=hpState[0],setHpData=hpState[1];
-  var viewingState=useState(null);
+  var viewingState=useState(defaultSession);
   var viewing=viewingState[0],setViewing=viewingState[1];
 
   function goPlayer(p,i){setHpData({p:p,i:i});setHv('player');}
@@ -888,67 +896,520 @@ function SaveModal(props){
   );
 }
 
-// ── Session Type Screen ────────────────────────────────────────────────────────
-function SessionTypeScreen(props){
-  var teamName=props.teamName,onSelect=props.onSelect,onBack=props.onBack;
+// ── Coach Input Block ──────────────────────────────────────────────────────────
+function CoachBlock(props){
+  var label=props.label,value=props.value,onChange=props.onChange,onRemove=props.onRemove;
+  var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:14,outline:'none',marginBottom:6};
   return (
-    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',maxWidth:520,margin:'0 auto'}}>
-      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'36px 20px 20px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
-        <button onClick={onBack} style={{position:'absolute',left:20,top:38,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>← Teams</button>
-        <div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:'uppercase',fontWeight:700,marginBottom:4}}>🏀 {teamName}</div>
-        <div style={{fontSize:24,fontWeight:900,color:T.t1,letterSpacing:3,textTransform:'uppercase'}}>New Session</div>
+    <div style={{background:T.card,border:'1px solid '+T.border,borderRadius:12,padding:14,display:'flex',flexDirection:'column',gap:2}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+        <div style={{fontSize:9,color:T.accent,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>{label}</div>
+        {onRemove&&<button onClick={onRemove} style={{background:'none',border:'none',color:T.red,cursor:'pointer',fontSize:12,fontWeight:700}}>✕ Remove</button>}
       </div>
-      <div style={{width:'100%',padding:'32px 20px',display:'flex',flexDirection:'column',gap:16}}>
-        <div style={{fontSize:11,color:T.t3,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>What type of session?</div>
-        <button onClick={function(){onSelect('Practice');}} style={{width:'100%',padding:'28px 24px',borderRadius:16,border:'2px solid #86efac',background:'#f0fdf4',cursor:'pointer',textAlign:'left',boxShadow:T.shadow}}>
-          <div style={{fontSize:38,marginBottom:8}}>🏋️</div>
-          <div style={{fontSize:20,fontWeight:900,color:'#14532d',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Practice</div>
-          <div style={{fontSize:13,color:'#166534',lineHeight:1.5}}>Track shooting from the court map. Clean and focused — shots only.</div>
-        </button>
-        <button onClick={function(){onSelect('Game');}} style={{width:'100%',padding:'28px 24px',borderRadius:16,border:'2px solid #fde68a',background:'#fffbeb',cursor:'pointer',textAlign:'left',boxShadow:T.shadow}}>
-          <div style={{fontSize:38,marginBottom:8}}>🏆</div>
-          <div style={{fontSize:20,fontWeight:900,color:'#78350f',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Game</div>
-          <div style={{fontSize:13,color:'#92400e',lineHeight:1.5}}>Full game stats: shots, live score, quarters, opponent tracking, +/−.</div>
-        </button>
+      <input value={value.name} onChange={function(e){onChange(Object.assign({},value,{name:e.target.value}));}} placeholder="Name" maxLength={40} style={iS}/>
+      <input value={value.email} onChange={function(e){onChange(Object.assign({},value,{email:e.target.value}));}} placeholder="Email" maxLength={60} style={iS}/>
+      <input value={value.cell} onChange={function(e){onChange(Object.assign({},value,{cell:e.target.value}));}} placeholder="Cell phone" maxLength={20} style={iS}/>
+    </div>
+  );
+}
+
+// ── Multi-Step New Team Modal ──────────────────────────────────────────────────
+function MultiStepTeamModal(props){
+  var onDone=props.onDone,onCancel=props.onCancel;
+  var stepState=useState(1);var step=stepState[0],setStep=stepState[1];
+  var nmState=useState('');var nm=nmState[0],setNm=nmState[1];
+  var headState=useState(emptyCoach());var head=headState[0],setHead=headState[1];
+  var astsState=useState([]);var asts=astsState[0],setAsts=astsState[1];
+  var plsState=useState([]);var pls=plsState[0],setPls=plsState[1];
+  var addNumState=useState('');var addNum=addNumState[0],setAddNum=addNumState[1];
+  var addNameState=useState('');var addName=addNameState[0],setAddName=addNameState[1];
+  var addEmailState=useState('');var addEmail=addEmailState[0],setAddEmail=addEmailState[1];
+  var addCellState=useState('');var addCell=addCellState[0],setAddCell=addCellState[1];
+  var addParentState=useState(false);var addParent=addParentState[0],setAddParent=addParentState[1];
+  var addPnameState=useState('');var addPname=addPnameState[0],setAddPname=addPnameState[1];
+  var addPemailState=useState('');var addPemail=addPemailState[0],setAddPemail=addPemailState[1];
+  var addPcellState=useState('');var addPcell=addPcellState[0],setAddPcell=addPcellState[1];
+  var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:14,outline:'none'};
+  function addPlayer(){
+    if(!addNum.trim()) return;
+    var idx=pls.length;
+    var p={id:uid(),number:addNum.trim(),name:addName.trim(),color:PAL[idx%PAL.length],active:true,email:addEmail.trim(),cell:addCell.trim(),parent:addParent?{name:addPname.trim(),email:addPemail.trim(),cell:addPcell.trim()}:null};
+    setPls(pls.concat([p]));
+    setAddNum('');setAddName('');setAddEmail('');setAddCell('');setAddParent(false);setAddPname('');setAddPemail('');setAddPcell('');
+  }
+  function finish(){
+    if(!nm.trim()) return;
+    var coaches={head:head,assistants:asts};
+    onDone(nm.trim(),coaches,pls);
+  }
+  var steps=['Team Info','Coaches','Players'];
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:999}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,maxHeight:'92vh',display:'flex',flexDirection:'column',animation:'slideup 0.2s ease',boxShadow:T.shadowMd}}>
+        <div style={{padding:'16px 20px 12px',borderBottom:'1px solid '+T.border,flexShrink:0}}>
+          <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 12px'}}/>
+          <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:12}}>New Team</div>
+          <div style={{display:'flex',gap:0,background:T.bg,borderRadius:10,border:'1px solid '+T.border,overflow:'hidden'}}>
+            {steps.map(function(s,i){return <div key={i} style={{flex:1,padding:'8px 4px',textAlign:'center',fontSize:9,fontWeight:700,letterSpacing:1,textTransform:'uppercase',background:step===i+1?T.accent:'transparent',color:step===i+1?'#fff':T.t4,cursor:'pointer',transition:'all 0.15s'}} onClick={function(){if(i+1<step||(i===1&&nm.trim())||(i===2&&nm.trim())) setStep(i+1);}}>{i+1}. {s}</div>;})}
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+          {step===1&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div><div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>Team Name *</div>
+                <input value={nm} onChange={function(e){setNm(e.target.value);}} placeholder="e.g. Varsity Eagles" maxLength={30} autoFocus style={Object.assign({},iS,{fontSize:18,fontWeight:700,textAlign:'center',padding:'14px'})}/>
+              </div>
+              <CoachBlock label="Head Coach" value={head} onChange={setHead}/>
+            </div>
+          )}
+          {step===2&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{fontSize:11,color:T.t3,textAlign:'center',letterSpacing:1,marginBottom:4}}>Up to 3 assistant coaches (optional)</div>
+              {asts.map(function(a,i){return <CoachBlock key={i} label={'Assistant Coach '+(i+1)} value={a} onChange={function(v){var n=asts.slice();n[i]=v;setAsts(n);}} onRemove={function(){setAsts(asts.filter(function(_,j){return j!==i;}));}}/>;})}
+              {asts.length<3&&<button onClick={function(){setAsts(asts.concat([emptyCoach()]));}} style={{padding:'12px',borderRadius:12,border:'1.5px dashed '+T.border,background:'transparent',color:T.t3,fontSize:13,cursor:'pointer',fontWeight:700}}>+ Add Assistant Coach</button>}
+            </div>
+          )}
+          {step===3&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              {pls.length>0&&<div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {pls.map(function(p,i){return <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,background:T.bg,borderRadius:10,padding:'8px 12px',border:'1px solid '+T.border}}>
+                  <div style={{width:34,height:34,borderRadius:8,background:p.color+'22',border:'2px solid '+p.color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:900,color:p.color,flexShrink:0}}>{p.number}</div>
+                  <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.t1}}>{p.name||'#'+p.number}</div>{(p.cell||p.email)&&<div style={{fontSize:10,color:T.t4}}>{p.cell||p.email}</div>}</div>
+                  <button onClick={function(){setPls(pls.filter(function(_,j){return j!==i;}));}} style={{background:'none',border:'none',color:T.red,cursor:'pointer',fontSize:14,padding:4}}>✕</button>
+                </div>;})}
+              </div>}
+              <div style={{background:T.bg,border:'1px solid '+T.border,borderRadius:12,padding:14,display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:9,color:T.accent,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:2}}>Add Player</div>
+                <div style={{display:'flex',gap:8}}>
+                  <input value={addNum} onChange={function(e){setAddNum(e.target.value);}} placeholder="#" maxLength={10} style={Object.assign({},iS,{width:70,fontSize:22,fontWeight:900,textAlign:'center',flexShrink:0})}/>
+                  <input value={addName} onChange={function(e){setAddName(e.target.value);}} placeholder="Player name" maxLength={40} style={iS}/>
+                </div>
+                <input value={addEmail} onChange={function(e){setAddEmail(e.target.value);}} placeholder="Player email (optional)" maxLength={60} style={iS}/>
+                <input value={addCell} onChange={function(e){setAddCell(e.target.value);}} placeholder="Player cell (optional)" maxLength={20} style={iS}/>
+                <button onClick={function(){setAddParent(!addParent);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,textAlign:'left',padding:0,letterSpacing:1}}>
+                  {addParent?'▾':'▸'} Parent / Guardian info
+                </button>
+                {addParent&&<div style={{display:'flex',flexDirection:'column',gap:6,paddingLeft:12,borderLeft:'2px solid '+T.border}}>
+                  <input value={addPname} onChange={function(e){setAddPname(e.target.value);}} placeholder="Parent name" maxLength={40} style={iS}/>
+                  <input value={addPemail} onChange={function(e){setAddPemail(e.target.value);}} placeholder="Parent email" maxLength={60} style={iS}/>
+                  <input value={addPcell} onChange={function(e){setAddPcell(e.target.value);}} placeholder="Parent cell" maxLength={20} style={iS}/>
+                </div>}
+                <button onClick={addPlayer} disabled={!addNum.trim()} style={{padding:'11px',borderRadius:10,border:'none',background:addNum.trim()?T.accent:'#e5e7eb',color:addNum.trim()?'#fff':T.t4,fontSize:13,fontWeight:700,cursor:addNum.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>+ Add to Roster</button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{padding:'14px 20px 32px',borderTop:'1px solid '+T.border,display:'flex',gap:10,flexShrink:0}}>
+          <button onClick={step===1?onCancel:function(){setStep(step-1);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:13,cursor:'pointer',fontWeight:600}}>{step===1?'Cancel':'← Back'}</button>
+          {step<3
+            ?<button onClick={function(){if(nm.trim()) setStep(step+1);}} disabled={step===1&&!nm.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:nm.trim()?T.accent:'#e5e7eb',color:nm.trim()?'#fff':T.t4,fontSize:14,fontWeight:700,cursor:nm.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Next →</button>
+            :<button onClick={finish} disabled={!nm.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:nm.trim()?T.accent:'#e5e7eb',color:nm.trim()?'#fff':T.t4,fontSize:14,fontWeight:700,cursor:nm.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>🏀 Create Team</button>
+          }
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Game Setup ─────────────────────────────────────────────────────────────────
-function GameSetup(props){
-  var teamName=props.teamName,onStart=props.onStart,onBack=props.onBack;
-  var oppState=useState('');
-  var opp=oppState[0],setOpp=oppState[1];
-  var numPState=useState(4);
-  var numP=numPState[0],setNumP=numPState[1];
+// ── Player Contact Modal ───────────────────────────────────────────────────────
+function PlayerContactModal(props){
+  var player=props.player,onSave=props.onSave,onClose=props.onClose;
+  var numState=useState(player.number||'');var num=numState[0],setNum=numState[1];
+  var nameState=useState(player.name||'');var name=nameState[0],setName=nameState[1];
+  var emailState=useState(player.email||'');var email=emailState[0],setEmail=emailState[1];
+  var cellState=useState(player.cell||'');var cell=cellState[0],setCell=cellState[1];
+  var showParState=useState(!!(player.parent&&(player.parent.name||player.parent.email||player.parent.cell)));
+  var showPar=showParState[0],setShowPar=showParState[1];
+  var par=player.parent||{name:'',email:'',cell:''};
+  var pnameState=useState(par.name||'');var pname=pnameState[0],setPname=pnameState[1];
+  var pemailState=useState(par.email||'');var pemail=pemailState[0],setPemail=pemailState[1];
+  var pcellState=useState(par.cell||'');var pcell=pcellState[0],setPcell=pcellState[1];
+  var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:14,outline:'none',marginBottom:8};
   return (
-    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',maxWidth:520,margin:'0 auto'}}>
-      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'36px 20px 20px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
-        <button onClick={onBack} style={{position:'absolute',left:20,top:38,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>← Back</button>
-        <div style={{fontSize:9,letterSpacing:4,color:T.accent,textTransform:'uppercase',fontWeight:700,marginBottom:4}}>🏆 Game Setup</div>
-        <div style={{fontSize:24,fontWeight:900,color:T.t1,letterSpacing:3,textTransform:'uppercase'}}>{teamName}</div>
-      </div>
-      <div style={{width:'100%',padding:'32px 20px',display:'flex',flexDirection:'column',gap:20}}>
-        <div>
-          <div style={{fontSize:11,color:T.t3,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>Opponent Name</div>
-          <input value={opp} onChange={function(e){setOpp(e.target.value);}} placeholder="e.g. Eagles, Raptors…" maxLength={30} autoFocus
-            onKeyDown={function(e){if(e.key==='Enter') onStart(opp.trim()||'Opponent',numP);}}
-            style={{width:'100%',boxSizing:'border-box',background:T.card,border:'2px solid '+T.border,borderRadius:14,padding:'18px',color:T.t1,fontSize:22,fontWeight:700,outline:'none',boxShadow:T.shadow,textAlign:'center'}}/>
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+      <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,maxHeight:'88vh',overflowY:'auto',boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:0}}>
+        <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Edit Player</div>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Jersey # *</div>
+        <input value={num} onChange={function(e){setNum(e.target.value);}} maxLength={10} placeholder="#" style={Object.assign({},iS,{fontSize:28,fontWeight:900,textAlign:'center'})}/>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Name</div>
+        <input value={name} onChange={function(e){setName(e.target.value);}} maxLength={40} placeholder="Player name" style={iS}/>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Email</div>
+        <input value={email} onChange={function(e){setEmail(e.target.value);}} maxLength={60} placeholder="Player email" style={iS}/>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Cell</div>
+        <input value={cell} onChange={function(e){setCell(e.target.value);}} maxLength={20} placeholder="Cell phone" style={iS}/>
+        <button onClick={function(){setShowPar(!showPar);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,textAlign:'left',padding:'4px 0 10px',letterSpacing:1}}>{showPar?'▾':'▸'} Parent / Guardian</button>
+        {showPar&&<div style={{paddingLeft:12,borderLeft:'2px solid '+T.border,marginBottom:10}}>
+          <input value={pname} onChange={function(e){setPname(e.target.value);}} placeholder="Parent name" maxLength={40} style={iS}/>
+          <input value={pemail} onChange={function(e){setPemail(e.target.value);}} placeholder="Parent email" maxLength={60} style={iS}/>
+          <input value={pcell} onChange={function(e){setPcell(e.target.value);}} placeholder="Parent cell" maxLength={20} style={iS}/>
+        </div>}
+        <div style={{display:'flex',gap:10,marginTop:8}}>
+          <button onClick={onClose} style={{flex:1,padding:'12px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:13,cursor:'pointer'}}>Cancel</button>
+          <button onClick={function(){if(num.trim()) onSave({number:num.trim(),name:name.trim(),email:email.trim(),cell:cell.trim(),parent:showPar?{name:pname.trim(),email:pemail.trim(),cell:pcell.trim()}:null});}} disabled={!num.trim()} style={{flex:2,padding:'12px 0',borderRadius:12,border:'none',background:num.trim()?T.accent:'#e5e7eb',color:num.trim()?'#fff':T.t4,fontSize:14,fontWeight:700,cursor:num.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
         </div>
-        <div>
-          <div style={{fontSize:11,color:T.t3,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>Game Format</div>
-          <div style={{display:'flex',background:T.card,border:'2px solid '+T.border,borderRadius:14,overflow:'hidden',boxShadow:T.shadow}}>
-            <button onClick={function(){setNumP(4);}} style={{flex:1,padding:'16px 0',border:'none',background:numP===4?T.accent:'transparent',color:numP===4?'#fff':T.t3,fontSize:14,fontWeight:900,letterSpacing:2,cursor:'pointer',transition:'all 0.15s',textTransform:'uppercase'}}>4 Quarters</button>
-            <button onClick={function(){setNumP(2);}} style={{flex:1,padding:'16px 0',border:'none',background:numP===2?T.accent:'transparent',color:numP===2?'#fff':T.t3,fontSize:14,fontWeight:900,letterSpacing:2,cursor:'pointer',transition:'all 0.15s',textTransform:'uppercase'}}>2 Halves</button>
-          </div>
-          <div style={{fontSize:10,color:T.t4,textAlign:'center',marginTop:6,letterSpacing:1}}>{numP===4?'Q1 · Q2 · Q3 · Q4':'H1 · H2'}</div>
-        </div>
-        <button onClick={function(){onStart(opp.trim()||'Opponent',numP);}} style={{width:'100%',padding:'18px 0',borderRadius:14,border:'none',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'#fff',fontSize:17,fontWeight:900,letterSpacing:4,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 16px rgba(217,119,6,0.35)'}}>🏆 Start Game</button>
       </div>
     </div>
   );
 }
+
+// ── Event Setup Modal ──────────────────────────────────────────────────────────
+function EventSetupModal(props){
+  var type=props.type,existing=props.existing,onStart=props.onStart,onSave=props.onSave,onCancel=props.onCancel;
+  var ev=existing||emptyEvent(type);
+  var dateState=useState(ev.date);var date=dateState[0],setDate=dateState[1];
+  var timeState=useState(ev.time||'10:00');var time=timeState[0],setTime=timeState[1];
+  var arrState=useState(ev.arrivalOffset||30);var arr=arrState[0],setArr=arrState[1];
+  var venueState=useState(ev.venue||'');var venue=venueState[0],setVenue=venueState[1];
+  var oppState=useState(ev.opponent||'');var opp=oppState[0],setOpp=oppState[1];
+  var haState=useState(ev.homeAway||'Home');var ha=haState[0],setHa=haState[1];
+  var npState=useState(ev.numPeriods||4);var np=npState[0],setNp=npState[1];
+  var notesState=useState(ev.notes||'');var notes=notesState[0],setNotes=notesState[1];
+  var isGame=type==='Game';
+  var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:14,outline:'none'};
+  var lS={fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5,display:'block',marginTop:12};
+  function buildEvent(){return Object.assign({},ev,{type:type,date:date,time:time,arrivalOffset:arr,venue:venue.trim(),opponent:opp.trim()||'Opponent',homeAway:ha,numPeriods:np,notes:notes.trim(),createdAt:ev.createdAt||new Date().toISOString()});}
+  var arrivalDisplay=time?calcArrival(time,arr):'—';
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:999}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,maxHeight:'92vh',display:'flex',flexDirection:'column',animation:'slideup 0.2s ease',boxShadow:T.shadowMd}}>
+        <div style={{padding:'16px 20px 12px',borderBottom:'1px solid '+T.border,flexShrink:0}}>
+          <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 12px'}}/>
+          <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase'}}>{isGame?'🏆 Game Setup':'🏋️ Practice Setup'}</div>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'4px 20px 4px'}}>
+          {isGame&&<React.Fragment>
+            <span style={lS}>Opponent *</span>
+            <input value={opp} onChange={function(e){setOpp(e.target.value);}} placeholder="e.g. Raptors, Eagles…" maxLength={30} autoFocus style={Object.assign({},iS,{fontSize:18,fontWeight:700,textAlign:'center',padding:'14px'})}/>
+            <span style={lS}>Home or Away</span>
+            <div style={{display:'flex',background:T.bg,border:'1px solid '+T.border,borderRadius:10,overflow:'hidden'}}>
+              <button onClick={function(){setHa('Home');}} style={{flex:1,padding:'11px',border:'none',background:ha==='Home'?T.green:'transparent',color:ha==='Home'?'#fff':T.t3,fontSize:13,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>🏠 Home</button>
+              <button onClick={function(){setHa('Away');}} style={{flex:1,padding:'11px',border:'none',background:ha==='Away'?T.accent:'transparent',color:ha==='Away'?'#fff':T.t3,fontSize:13,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>✈️ Away</button>
+            </div>
+            <span style={lS}>Game Format</span>
+            <div style={{display:'flex',background:T.bg,border:'1px solid '+T.border,borderRadius:10,overflow:'hidden'}}>
+              <button onClick={function(){setNp(4);}} style={{flex:1,padding:'10px',border:'none',background:np===4?T.accent:'transparent',color:np===4?'#fff':T.t3,fontSize:12,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>4 Quarters</button>
+              <button onClick={function(){setNp(2);}} style={{flex:1,padding:'10px',border:'none',background:np===2?T.accent:'transparent',color:np===2?'#fff':T.t3,fontSize:12,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>2 Halves</button>
+            </div>
+          </React.Fragment>}
+          <div style={{display:'flex',gap:12}}>
+            <div style={{flex:1}}><span style={lS}>Date</span><input type="date" value={date} onChange={function(e){setDate(e.target.value);}} style={iS}/></div>
+            <div style={{flex:1}}><span style={lS}>Time</span><input type="time" value={time} onChange={function(e){setTime(e.target.value);}} style={iS}/></div>
+          </div>
+          <span style={lS}>Player arrival</span>
+          <div style={{display:'flex',gap:6}}>
+            {[15,30,45,60].map(function(m){return <button key={m} onClick={function(){setArr(m);}} style={{flex:1,padding:'10px 0',borderRadius:9,border:'1px solid '+(arr===m?T.accent:T.border),background:arr===m?T.accent+'18':T.bg,color:arr===m?T.accent:T.t3,fontSize:11,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>{m} min</button>;})}
+          </div>
+          {time&&<div style={{fontSize:11,color:T.t3,textAlign:'center',marginTop:5,letterSpacing:1}}>Arrival: <strong style={{color:T.t1}}>{arrivalDisplay}</strong> · {isGame?'Game':'Practice'}: <strong style={{color:T.t1}}>{fmtTime12(time)}</strong></div>}
+          <span style={lS}>Venue / Location</span>
+          <input value={venue} onChange={function(e){setVenue(e.target.value);}} placeholder="e.g. Eastside Arena" maxLength={60} style={iS}/>
+          {venue.trim()&&<div style={{fontSize:11,marginTop:4}}><a href={mapsUrl(venue)} target="_blank" rel="noopener noreferrer" style={{color:T.blue,textDecoration:'none',fontWeight:600}}>📍 Open in Google Maps ↗</a></div>}
+          <span style={lS}>Notes</span>
+          <textarea value={notes} onChange={function(e){setNotes(e.target.value);}} placeholder="e.g. Bring blue jerseys, gym entrance on east side…" maxLength={200} rows={3} style={Object.assign({},iS,{resize:'none',fontFamily:'inherit',lineHeight:1.5})}/>
+          <div style={{height:12}}/>
+        </div>
+        <div style={{padding:'12px 20px 32px',borderTop:'1px solid '+T.border,display:'flex',flexDirection:'column',gap:8,flexShrink:0}}>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={onCancel} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:13,cursor:'pointer',fontWeight:600}}>Cancel</button>
+            <button onClick={function(){onSave(buildEvent());}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:'#1e3a5f',fontSize:13,cursor:'pointer',fontWeight:700}}>📅 Save</button>
+          </div>
+          <button onClick={function(){onStart(buildEvent());}} style={{width:'100%',padding:'15px 0',borderRadius:12,border:'none',background:isGame?'linear-gradient(135deg,#d97706,#f59e0b)':'linear-gradient(135deg,#16a34a,#22c55e)',color:'#fff',fontSize:15,fontWeight:900,letterSpacing:3,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 16px rgba(0,0,0,0.15)'}}>
+            {isGame?'🏆 Start Game':'🏋️ Start Practice'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Event Info Popup ───────────────────────────────────────────────────────────
+function EventInfoPopup(props){
+  var ev=props.event,players=props.players,coaches=props.coaches;
+  var onStart=props.onStart,onEdit=props.onEdit,onDelete=props.onDelete,onClose=props.onClose;
+  var isPast=props.isPast||false,onViewStats=props.onViewStats;
+  var isGame=ev.type==='Game';
+  var head=(coaches&&coaches.head)||null;
+  var asts=(coaches&&coaches.assistants)||[];
+  var arrTime=ev.time?calcArrival(ev.time,ev.arrivalOffset||30):'—';
+  var gameTime=ev.time?fmtTime12(ev.time):'—';
+  var onFloor=players.filter(function(p){return p.active!==false;}).sort(function(a,b){return parseNum(a.number)-parseNum(b.number);});
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:999}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,maxHeight:'92vh',display:'flex',flexDirection:'column',animation:'slideup 0.2s ease',boxShadow:T.shadowMd}}>
+        <div style={{padding:'16px 20px 12px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center',flexShrink:0}}>
+          <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:700}}>← Back</button>
+          <div style={{fontSize:12,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{isGame?'🏆 Game':'🏋️ Practice'}</div>
+          <button onClick={onEdit} style={{background:'none',border:'none',color:T.t3,cursor:'pointer',fontSize:13}}>✏️</button>
+        </div>
+        <div style={{flex:1,overflowY:'auto',padding:'16px 20px 4px',display:'flex',flexDirection:'column',gap:12}}>
+          {isGame&&<div style={{textAlign:'center'}}>
+            <div style={{fontSize:24,fontWeight:900,color:T.t1,letterSpacing:2}}>vs {ev.opponent}</div>
+            <div style={{fontSize:12,color:T.t3,marginTop:2,letterSpacing:1}}>{ev.homeAway==='Home'?'🏠 Home':'✈️ Away'} · {ev.numPeriods===2?'2 Halves':'4 Quarters'}</div>
+          </div>}
+          <div style={{background:T.bg,borderRadius:12,padding:'12px 16px',display:'flex',flexDirection:'column',gap:8,border:'1px solid '+T.border}}>
+            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,color:T.t4,fontWeight:700}}>📅 Date</span><span style={{fontSize:12,color:T.t1,fontWeight:600}}>{fmtDate(ev.date)}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,color:T.t4,fontWeight:700}}>⏰ {isGame?'Tip-off':'Start'}</span><span style={{fontSize:12,color:T.t1,fontWeight:600}}>{gameTime}</span></div>
+            <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:11,color:T.t4,fontWeight:700}}>🚗 Arrive by</span><span style={{fontSize:12,color:T.accent,fontWeight:700}}>{arrTime}</span></div>
+            {ev.venue&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{fontSize:11,color:T.t4,fontWeight:700}}>📍 Venue</span><a href={mapsUrl(ev.venue)} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:T.blue,fontWeight:600,textDecoration:'none'}}>{ev.venue} ↗</a></div>}
+            {ev.notes&&<div><span style={{fontSize:11,color:T.t4,fontWeight:700}}>📝 Notes</span><div style={{fontSize:12,color:T.t2,marginTop:3,lineHeight:1.5}}>{ev.notes}</div></div>}
+          </div>
+          {head&&head.name&&<div style={{background:T.bg,borderRadius:12,padding:'10px 14px',border:'1px solid '+T.border}}>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Coaching Staff</div>
+            <div style={{fontSize:12,color:T.t1,fontWeight:700,marginBottom:2}}>{head.name} <span style={{color:T.t4,fontWeight:400}}>(Head)</span></div>
+            {head.cell&&<div style={{fontSize:11,color:T.t3}}>{head.cell}</div>}
+            {asts.filter(function(a){return a.name;}).map(function(a,i){return <div key={i} style={{marginTop:6}}><div style={{fontSize:12,color:T.t1,fontWeight:600}}>{a.name} <span style={{color:T.t4,fontWeight:400}}>(Asst)</span></div>{a.cell&&<div style={{fontSize:11,color:T.t3}}>{a.cell}</div>}</div>;})}
+          </div>}
+          <div>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Roster ({players.length})</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {players.sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p,i){
+                var col=pc(p,i);
+                return <div key={p.id} style={{display:'flex',alignItems:'center',gap:6,background:col+'12',borderRadius:20,padding:'5px 10px',border:'1px solid '+col+'44'}}>
+                  <div style={{width:7,height:7,borderRadius:'50%',background:col}}/><span style={{fontSize:11,color:T.t1,fontWeight:700}}>#{p.number}</span>{p.name&&<span style={{fontSize:10,color:T.t3}}>{p.name}</span>}
+                </div>;
+              })}
+            </div>
+          </div>
+        </div>
+        <div style={{padding:'12px 20px 32px',borderTop:'1px solid '+T.border,display:'flex',flexDirection:'column',gap:8,flexShrink:0}}>
+          <button onClick={function(){onDelete(ev.id);}} style={{padding:'10px',borderRadius:10,border:'1px solid #fecaca',background:'#fef2f2',color:T.red,fontSize:11,fontWeight:700,cursor:'pointer',letterSpacing:1}}>🗑 Delete Event</button>
+          {isPast
+            ?<button onClick={onViewStats} style={{width:'100%',padding:'15px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:15,fontWeight:900,letterSpacing:3,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 16px rgba(30,58,95,0.25)'}}>📊 View Stats</button>
+            :<button onClick={function(){onStart(ev);}} style={{width:'100%',padding:'15px 0',borderRadius:12,border:'none',background:isGame?'linear-gradient(135deg,#d97706,#f59e0b)':'linear-gradient(135deg,#16a34a,#22c55e)',color:'#fff',fontSize:15,fontWeight:900,letterSpacing:3,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 16px rgba(0,0,0,0.15)'}}>
+                {isGame?'🏆 Start Game':'🏋️ Start Practice'}
+              </button>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Session Type Screen ────────────────────────────────────────────────────────
+function SessionTypeScreen(props){
+  var teamMeta=props.teamMeta,teamData=props.teamData,onStartSession=props.onStartSession,onUpdateData=props.onUpdateData,onBack=props.onBack;
+  var players=teamData.players||[];
+  var schedule=teamData.schedule||[];
+  var coaches=teamData.coaches||{head:emptyCoach(),assistants:[]};
+  var tab=useState('session');var activeTab=tab[0],setActiveTab=tab[1];
+  var setupType=useState(null);var evSetupType=setupType[0],setEvSetupType=setupType[1];
+  var editEvState=useState(null);var editEv=editEvState[0],setEditEv=editEvState[1];
+  var viewEvState=useState(null);var viewEv=viewEvState[0],setViewEv=viewEvState[1];
+  var editPlayerState=useState(null);var editPlayer=editPlayerState[0],setEditPlayer=editPlayerState[1];
+  var editHeadState=useState(false);var editHead=editHeadState[0],setEditHead=editHeadState[1];
+  var editAstIdxState=useState(null);var editAstIdx=editAstIdxState[0],setEditAstIdx=editAstIdxState[1];
+  var historyViewState=useState(null);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
+
+  var now=new Date();now.setHours(0,0,0,0);
+  var upcoming=schedule.filter(function(e){return new Date(e.date+'T12:00:00')>=now;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
+  var past=schedule.filter(function(e){return new Date(e.date+'T12:00:00')<now;}).sort(function(a,b){return b.date.localeCompare(a.date);});
+
+  function saveSchedule(newSched){onUpdateData({schedule:newSched});}
+  function saveCoaches(newCoaches){onUpdateData({coaches:newCoaches});}
+  function savePlayers(newPlayers){onUpdateData({players:newPlayers});}
+
+  function handleEventSave(ev){
+    var existing=schedule.find(function(e){return e.id===ev.id;});
+    var newSched=existing?schedule.map(function(e){return e.id===ev.id?ev:e;}):schedule.concat([ev]);
+    saveSchedule(newSched);setEvSetupType(null);setEditEv(null);
+  }
+  function handleEventStart(ev){
+    setEvSetupType(null);setEditEv(null);setViewEv(null);
+    onStartSession(ev.type,{opponent:ev.opponent||'Opponent',numPeriods:ev.numPeriods||4});
+  }
+  function handleDeleteEvent(id){saveSchedule(schedule.filter(function(e){return e.id!==id;}));setViewEv(null);}
+
+  function handleViewStats(ev){
+    var sessions=teamData.sessions||[];
+    // Find sessions matching this event by date + type + opponent
+    var matched=sessions.filter(function(s){
+      var typeMatch=s.sessionType===ev.type;
+      var dateMatch=s.date===ev.date;
+      var oppMatch=ev.type!=='Game'||((s.opponent||'').toLowerCase()===(ev.opponent||'').toLowerCase());
+      return typeMatch&&dateMatch&&oppMatch;
+    });
+    // Use first match as the default session to open; fall back to any session of same type+date
+    var defaultSess=matched.length>0?matched[0]:null;
+    setViewEv(null);
+    setHistoryView({defaultSession:defaultSess,sessions:matched.length>0?matched:sessions});
+  }
+
+  function EventCard(evProps){
+    var e=evProps.ev,isPast=evProps.isPast;
+    var isG=e.type==='Game';
+    var dotColor=isG?'#d97706':T.green;
+    return (
+      <div onClick={function(){setViewEv(e);}} style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden',cursor:'pointer'}}>
+        <div style={{height:3,background:dotColor}}/>
+        <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:12}}>
+          <div style={{textAlign:'center',minWidth:36,flexShrink:0}}>
+            <div style={{fontSize:18,fontWeight:900,color:dotColor,lineHeight:1}}>{new Date(e.date+'T12:00:00').getDate()}</div>
+            <div style={{fontSize:8,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>{new Date(e.date+'T12:00:00').toLocaleString('en-US',{month:'short'})}</div>
+          </div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:700,color:isPast?T.t3:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isG?'vs '+e.opponent:'Practice'}</div>
+            <div style={{fontSize:10,color:T.t4,marginTop:1}}>{e.time?fmtTime12(e.time):''}{e.venue?' · '+e.venue:''}</div>
+            {e.time&&!isPast&&<div style={{fontSize:10,color:T.accent,fontWeight:700,marginTop:1}}>Arrive: {calcArrival(e.time,e.arrivalOffset||30)}</div>}
+          </div>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3,flexShrink:0}}>
+            <span style={{fontSize:8,fontWeight:700,padding:'2px 7px',borderRadius:20,background:isG?'#fef3c7':'#dcfce7',color:isG?'#92400e':'#14532d'}}>{isG?'GAME':'PRACTICE'}</span>
+            {isG&&e.homeAway&&<span style={{fontSize:8,color:T.t4}}>{e.homeAway==='Home'?'🏠':'✈️'} {e.homeAway}</span>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',maxWidth:520,margin:'0 auto'}}>
+      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'36px 16px 14px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
+        <button onClick={onBack} style={{position:'absolute',left:16,top:38,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>← Teams</button>
+        <div style={{fontSize:28,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase',lineHeight:1.1}}>{teamMeta.name}</div>
+        <div style={{display:'flex',background:T.bg,borderRadius:10,border:'1px solid '+T.border,overflow:'hidden',marginTop:12}}>
+          {[['session','🏀 Session'],['schedule','📅 Schedule'],['roster','👥 Roster']].map(function(item){return <button key={item[0]} onClick={function(){setActiveTab(item[0]);}} style={{flex:1,padding:'9px 0',border:'none',cursor:'pointer',background:activeTab===item[0]?T.accent:'transparent',color:activeTab===item[0]?'#fff':T.t3,fontSize:10,letterSpacing:1,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s'}}>{item[1]}</button>;})}
+        </div>
+      </div>
+
+      {activeTab==='session'&&(
+        <div style={{width:'100%',padding:'16px 14px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={function(){setEvSetupType('Practice');setEditEv(null);}} style={{flex:1,padding:'14px 12px',borderRadius:14,border:'2px solid #86efac',background:'#f0fdf4',cursor:'pointer',textAlign:'center',boxShadow:T.shadow}}>
+              <div style={{fontSize:22,marginBottom:4}}>🏋️</div>
+              <div style={{fontSize:13,fontWeight:900,color:'#14532d',letterSpacing:1,textTransform:'uppercase'}}>Practice</div>
+            </button>
+            <button onClick={function(){setEvSetupType('Game');setEditEv(null);}} style={{flex:1,padding:'14px 12px',borderRadius:14,border:'2px solid #fde68a',background:'#fffbeb',cursor:'pointer',textAlign:'center',boxShadow:T.shadow}}>
+              <div style={{fontSize:22,marginBottom:4}}>🏆</div>
+              <div style={{fontSize:13,fontWeight:900,color:'#78350f',letterSpacing:1,textTransform:'uppercase'}}>Game</div>
+            </button>
+          </div>
+          {upcoming.length>0&&<div>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',margin:'8px 0 8px'}}>Upcoming</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}
+            </div>
+          </div>}
+          {past.length>0&&<div>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',margin:'8px 0 8px'}}>Past</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}
+            </div>
+          </div>}
+        </div>
+      )}
+
+      {activeTab==='schedule'&&(
+        <div style={{width:'100%',padding:'16px 14px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+            <button onClick={function(){setEvSetupType('Practice');setEditEv(null);}} style={{padding:'8px 14px',borderRadius:20,border:'1px solid '+T.green,background:'#f0fdf4',color:T.green,fontSize:11,fontWeight:700,cursor:'pointer'}}>+ Practice</button>
+            <button onClick={function(){setEvSetupType('Game');setEditEv(null);}} style={{padding:'8px 14px',borderRadius:20,border:'none',background:T.accent,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(255,107,53,0.3)'}}>+ Game</button>
+          </div>
+          {upcoming.length===0&&past.length===0&&<div style={{textAlign:'center',padding:'50px 20px',color:T.t4}}><div style={{fontSize:36,marginBottom:10}}>📅</div><div style={{fontSize:13,letterSpacing:2,textTransform:'uppercase'}}>No events scheduled</div></div>}
+          {upcoming.length>0&&<div>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Upcoming</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>{upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}</div>
+          </div>}
+          {past.length>0&&<div>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Past</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>{past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}</div>
+          </div>}
+        </div>
+      )}
+
+      {activeTab==='roster'&&(
+        <div style={{width:'100%',padding:'16px 14px',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
+            <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Coaching Staff</div>
+            </div>
+            <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:6}}>
+              {(function(){
+                var hc=coaches.head||emptyCoach();
+                return <div onClick={function(){setEditHead(true);}} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:T.bg,borderRadius:10,border:'1px solid '+T.border,cursor:'pointer'}}>
+                  <div style={{width:34,height:34,borderRadius:10,background:T.accent+'18',border:'1px solid '+T.accent+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>👨‍💼</div>
+                  <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:T.t1}}>{hc.name||'Head Coach — tap to add'}</div>{hc.cell&&<div style={{fontSize:10,color:T.t3}}>{hc.cell}</div>}{hc.email&&<div style={{fontSize:10,color:T.t3}}>{hc.email}</div>}</div>
+                  <div style={{fontSize:9,color:T.t4,fontWeight:700}}>HEAD</div>
+                </div>;
+              })()}
+              {(coaches.assistants||[]).map(function(a,i){return <div key={i} onClick={function(){setEditAstIdx(i);}} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:T.bg,borderRadius:10,border:'1px solid '+T.border,cursor:'pointer'}}>
+                <div style={{width:34,height:34,borderRadius:10,background:T.t4+'18',border:'1px solid '+T.border,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>👤</div>
+                <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:T.t1}}>{a.name||'Assistant Coach '+(i+1)}</div>{a.cell&&<div style={{fontSize:10,color:T.t3}}>{a.cell}</div>}</div>
+                <div style={{fontSize:9,color:T.t4,fontWeight:700}}>ASST</div>
+              </div>;})}
+            </div>
+          </div>
+          <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
+            <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Players ({players.length})</div>
+            </div>
+            <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:6}}>
+              {players.sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p,i){
+                var col=pc(p,players.indexOf(p));
+                var hasContact=p.email||p.cell||(p.parent&&(p.parent.name||p.parent.cell));
+                return <div key={p.id} onClick={function(){setEditPlayer(p);}} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:T.bg,borderRadius:10,border:'1px solid '+T.border,cursor:'pointer'}}>
+                  <div style={{width:38,height:38,borderRadius:10,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:900,color:col,flexShrink:0}}>{p.number}</div>
+                  <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.t1}}>{p.name||'#'+p.number}</div>
+                    {hasContact&&<div style={{fontSize:10,color:T.t3}}>{p.cell||p.email}</div>}
+                    {!hasContact&&<div style={{fontSize:10,color:T.t4,fontStyle:'italic'}}>No contact info</div>}
+                    {p.parent&&p.parent.name&&<div style={{fontSize:10,color:T.t4}}>Parent: {p.parent.name}</div>}
+                  </div>
+                  <div style={{fontSize:11,color:T.t4}}>›</div>
+                </div>;
+              })}
+              {players.length===0&&<div style={{textAlign:'center',padding:'20px',color:T.t4,fontSize:12}}>No players yet. Add players during a session.</div>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {evSetupType&&<EventSetupModal type={evSetupType} existing={editEv} onStart={handleEventStart} onSave={handleEventSave} onCancel={function(){setEvSetupType(null);setEditEv(null);}}/>}
+      {viewEv&&!evSetupType&&(function(){
+        var evDate=viewEv.date;
+        var now=new Date();now.setHours(0,0,0,0);
+        var evIsPast=new Date(evDate+'T12:00:00')<now;
+        return <EventInfoPopup event={viewEv} players={players} coaches={coaches} isPast={evIsPast} onStart={handleEventStart} onViewStats={function(){handleViewStats(viewEv);}} onEdit={function(){setEditEv(viewEv);setEvSetupType(viewEv.type);setViewEv(null);}} onDelete={handleDeleteEvent} onClose={function(){setViewEv(null);}}/>;
+      })()}
+      {historyView&&(
+        <div style={{position:'fixed',inset:0,background:T.bg,zIndex:998,overflowY:'auto'}}>
+          <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:T.shadow}}>
+            <button onClick={function(){setHistoryView(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:13,fontWeight:700,letterSpacing:1,flexShrink:0}}>← Back</button>
+            <div style={{fontSize:16,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{teamMeta.name}</div>
+          </div>
+          <div style={{maxWidth:520,margin:'0 auto',padding:'0 0 40px'}}>
+            <HistoryView
+              teamMeta={teamMeta}
+              players={players}
+              sessions={teamData.sessions||[]}
+              defaultSession={historyView.defaultSession}
+              onDelSession={function(id){
+                var ns=(teamData.sessions||[]).filter(function(s){return s.id!==id;});
+                onUpdateData({sessions:ns});
+                if(historyView.defaultSession&&historyView.defaultSession.id===id) setHistoryView(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+      {editPlayer&&<PlayerContactModal player={editPlayer} onSave={function(updates){savePlayers(players.map(function(p){return p.id===editPlayer.id?Object.assign({},p,updates):p;}));setEditPlayer(null);}} onClose={function(){setEditPlayer(null);}}/>}
+      {editHead&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+        <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase'}}>Head Coach</div>
+          <CoachBlock label="Head Coach" value={coaches.head||emptyCoach()} onChange={function(v){saveCoaches(Object.assign({},coaches,{head:v}));}}/>
+          <button onClick={function(){setEditHead(false);}} style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Done</button>
+        </div>
+      </div>}
+      {editAstIdx!==null&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+        <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase'}}>Assistant Coach {editAstIdx+1}</div>
+          <CoachBlock label={'Assistant Coach '+(editAstIdx+1)} value={(coaches.assistants||[])[editAstIdx]||emptyCoach()} onChange={function(v){var na=(coaches.assistants||[]).slice();na[editAstIdx]=v;saveCoaches(Object.assign({},coaches,{assistants:na}));}}/>
+          <button onClick={function(){setEditAstIdx(null);}} style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Done</button>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+// ── Game Setup ─────────────────────────────────────────────────────────────────
+// (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
+
 
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
@@ -2174,6 +2635,184 @@ function HelpModal(props){
 function TeamSelector(props){
   var teams=props.teams,onSelect=props.onSelect,onCreate=props.onCreate,onEdit=props.onEdit,onDelete=props.onDelete,onImport=props.onImport;
   var crState=useState(false);var cr=crState[0],setCr=crState[1];
+  var etState=useState(null);var et=etState[0],setEt=etState[1];
+  var enState=useState('');var en=enState[0],setEn=enState[1];
+  var cdState=useState(false);var cd=cdState[0],setCd=cdState[1];
+  var msgState=useState(null);var importMsg=msgState[0],setImportMsg=msgState[1];
+  var helpState=useState(false);var helpOpen=helpState[0],setHelpOpen=helpState[1];
+  var tabState=useState('teams');var tab=tabState[0],setTab=tabState[1];
+  var histTeamState=useState(null);var histTeam=histTeamState[0],setHistTeam=histTeamState[1];
+  var fileRef=useRef(null);
+  var TC=['#dc2626','#2563eb','#16a34a','#7c3aed','#d97706','#0891b2','#9d174d','#374151'];
+  function tc(id){return TC[parseInt(id.slice(-2),36)%TC.length];}
+
+  function getTeamData(team){var d=lsGet(TK(team.id))||{};return {players:d.players||[],sessions:d.sessions||[]};}
+
+  function handleExport(){
+    var keys=Object.keys(localStorage).filter(function(k){return k.indexOf('bball-')===0;});
+    var data={exportedAt:new Date().toISOString(),version:'v6',mergedTeams:teams,keys:{}};
+    keys.forEach(function(k){try{data.keys[k]=JSON.parse(localStorage.getItem(k));}catch(e){}});
+    var b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    var u=URL.createObjectURL(b);var a=document.createElement('a');
+    a.href=u;a.download='shottracker-backup-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u);
+  }
+  function handleImportFile(e){
+    var file=e.target.files&&e.target.files[0];if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var data=JSON.parse(ev.target.result);
+        if(!data.keys) throw new Error('Invalid');
+        Object.keys(data.keys).forEach(function(k){
+          var v=data.keys[k];var nk=k;
+          if(/^bball-teams/.test(k)&&!/^bball-team-/.test(k)) nk='bball-teams-v6';
+          var m=k.match(/^bball-team-(?:v\d+-)?(.+)$/);
+          if(m&&k.indexOf('-team-')>-1&&k.indexOf('teams')===-1) nk='bball-team-v6-'+m[1];
+          if(v&&v.sessions) v.sessions=v.sessions.map(function(s){return Object.assign({foul:0},s);});
+          lsSet(nk,v);
+        });
+        var mt=data.mergedTeams||lsGet('bball-teams-v6')||[];
+        if(mt.length>0) lsSet('bball-teams-v6',mt);
+        var nt=lsGet('bball-teams-v6')||[];
+        onImport(nt);
+        setImportMsg('✓ Imported '+nt.length+' team(s)!');
+        setTimeout(function(){setImportMsg(null);},4000);
+      }catch(err){
+        setImportMsg('✗ Import failed — invalid file');
+        setTimeout(function(){setImportMsg(null);},4000);
+      }
+    };
+    reader.readAsText(file);e.target.value='';
+  }
+
+  return (
+    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',padding:'0 0 40px',maxWidth:520,margin:'0 auto'}}>
+      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 20px 16px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
+        <button onClick={function(){setHelpOpen(true);}} style={{position:'absolute',top:16,right:16,width:36,height:36,borderRadius:18,border:'1px solid '+T.border,background:T.bg,color:T.accent,fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,boxShadow:T.shadow}}>❓</button>
+        <div style={{fontSize:52,marginBottom:8}}>🏀</div>
+        <h1 style={{margin:'0 0 4px',fontSize:26,letterSpacing:4,color:T.t1,textTransform:'uppercase',fontWeight:900}}>Shot Tracker</h1>
+        <div style={{fontSize:11,color:T.accent,letterSpacing:3,textTransform:'uppercase',fontWeight:700,marginBottom:14}}>v4.0 · Practice and Game</div>
+        <div style={{display:'flex',background:T.bg,borderRadius:10,border:'1px solid '+T.border,overflow:'hidden'}}>
+          <button onClick={function(){setTab('teams');setHistTeam(null);}} style={{flex:1,padding:'10px 0',border:'none',cursor:'pointer',background:tab==='teams'?T.accent:'transparent',color:tab==='teams'?'#fff':T.t3,fontSize:11,letterSpacing:2,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s'}}>📋 Teams</button>
+          <button onClick={function(){setTab('history');setHistTeam(teams.length===1?teams[0]:null);}} style={{flex:1,padding:'10px 0',border:'none',cursor:'pointer',background:tab==='history'?T.accent:'transparent',color:tab==='history'?'#fff':T.t3,fontSize:11,letterSpacing:2,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s'}}>📅 History</button>
+        </div>
+      </div>
+
+      {tab==='teams'&&(
+        <div style={{width:'100%',padding:'16px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:10,letterSpacing:2,color:T.t4,textTransform:'uppercase',fontWeight:700}}>{teams.length>0?teams.length+' Team'+(teams.length!==1?'s':''):''}</div>
+            <button onClick={function(){setCr(true);}} style={{padding:'8px 16px',borderRadius:20,border:'none',background:T.accent,color:'#fff',fontSize:11,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 2px 8px rgba(255,107,53,0.3)'}}>＋ New Team</button>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={handleExport} style={{flex:1,padding:'9px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:'#7c3aed',fontSize:11,letterSpacing:1,cursor:'pointer',fontWeight:700,boxShadow:T.shadow}}>📤 Export Backup</button>
+            <button onClick={function(){if(fileRef.current) fileRef.current.click();}} style={{flex:1,padding:'9px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.blue,fontSize:11,letterSpacing:1,cursor:'pointer',fontWeight:700,boxShadow:T.shadow}}>📥 Import Backup</button>
+            <input ref={fileRef} type="file" accept=".json" onChange={handleImportFile} style={{display:'none'}}/>
+          </div>
+          {importMsg&&<div style={{padding:'10px 14px',borderRadius:10,background:importMsg.indexOf('✓')===0?T.greenL:'rgba(220,38,38,0.1)',border:'1px solid '+(importMsg.indexOf('✓')===0?'#86efac':'#fca5a5'),fontSize:12,color:importMsg.indexOf('✓')===0?T.green:T.red,textAlign:'center',fontWeight:700}}>{importMsg}</div>}
+          {teams.length===0&&!cr&&(
+            <div style={{textAlign:'center',padding:'60px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+              <div style={{fontSize:40}}>📋</div>
+              <div style={{fontSize:14,color:T.t4,letterSpacing:2,textTransform:'uppercase',fontWeight:700}}>No Teams Yet</div>
+              <button onClick={function(){setCr(true);}} style={{padding:'16px 32px',borderRadius:14,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:900,letterSpacing:4,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 20px rgba(255,107,53,0.35)'}}>🏀 Create First Team</button>
+            </div>
+          )}
+          {teams.map(function(t){
+            var col=tc(t.id);
+            return (
+              <div key={t.id} style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+                <div style={{height:4,background:'linear-gradient(90deg,'+col+','+col+'88)'}}/>
+                <div style={{padding:'16px',display:'flex',alignItems:'center',gap:14}}>
+                  <div style={{width:48,height:48,borderRadius:12,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>🏀</div>
+                  <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={function(){onSelect(t);}}>
+                    <div style={{fontSize:16,fontWeight:900,color:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</div>
+                    <div style={{fontSize:10,color:T.t4,marginTop:3}}>Created {fmtDate(t.createdAt.slice(0,10))}</div>
+                    <div style={{display:'flex',gap:10,marginTop:5,flexWrap:'wrap'}}>
+                      {t.playerCount>0&&<span style={{fontSize:9,color:col,fontWeight:700}}>👤 {t.playerCount} players</span>}
+                      {t.sessionCount>0&&<span style={{fontSize:9,color:T.green,fontWeight:700}}>📊 {t.sessionCount} sessions</span>}
+                      {t.totalPoints>0&&<span style={{fontSize:9,color:'#d97706',fontWeight:700}}>⭐ {t.totalPoints} pts</span>}
+                    </div>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
+                    <button onClick={function(){onSelect(t);}} style={{width:38,height:38,borderRadius:10,border:'none',background:col,color:'#fff',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px '+col+'44'}}>▶</button>
+                    <button onClick={function(){setEt(t);setEn(t.name);setCd(false);}} style={{width:38,height:38,borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t3,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>✏️</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab==='history'&&(
+        <div style={{width:'100%',padding:'16px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
+          {teams.length===0&&<div style={{textAlign:'center',padding:'60px 20px',background:T.card,borderRadius:12,border:'1px solid '+T.border}}><div style={{fontSize:36,marginBottom:12}}>📋</div><div style={{fontSize:13,color:T.t4,textTransform:'uppercase',letterSpacing:2}}>No teams yet</div></div>}
+          {teams.length>0&&!histTeam&&(
+            <React.Fragment>
+              <div style={{fontSize:10,color:T.t4,letterSpacing:2,textTransform:'uppercase',fontWeight:700,marginBottom:2}}>Select a team to view history</div>
+              {teams.map(function(t){
+                var col=tc(t.id);
+                return (
+                  <button key={t.id} onClick={function(){setHistTeam(t);}}
+                    style={{width:'100%',background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'14px 16px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left'}}>
+                    <div style={{width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
+                    <div style={{flex:1,fontSize:15,fontWeight:900,color:T.t1}}>{t.name}</div>
+                    {t.sessionCount>0&&<span style={{fontSize:10,color:T.green,fontWeight:700}}>{t.sessionCount} sessions</span>}
+                    <div style={{fontSize:18,color:T.t4}}>›</div>
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          )}
+          {histTeam&&(function(){
+            var td=getTeamData(histTeam);
+            return (
+              <React.Fragment>
+                {teams.length>1&&<button onClick={function(){setHistTeam(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← All Teams</button>}
+                <div style={{fontSize:14,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{histTeam.name}</div>
+                <HistoryView teamMeta={histTeam} players={td.players} sessions={td.sessions} onDelSession={function(id){var ns=td.sessions.filter(function(s){return s.id!==id;});lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}}/>
+              </React.Fragment>
+            );
+          })()}
+        </div>
+      )}
+
+      {cr&&<MultiStepTeamModal onDone={function(name,coaches,players){setCr(false);onCreate(name,coaches,players);}} onCancel={function(){setCr(false);}}/>}
+
+      {et&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+          <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:14,animation:'popin 0.15s ease'}}>
+            {!cd?(
+              <React.Fragment>
+                <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase'}}>Edit Team</div>
+                <input value={en} onChange={function(e){setEn(e.target.value);}} maxLength={30} style={{width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:12,padding:'14px',color:T.t1,fontSize:18,fontWeight:700,outline:'none',textAlign:'center'}}/>
+                <div style={{display:'flex',gap:10}}>
+                  <button onClick={function(){setEt(null);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                  <button onClick={function(){if(en.trim()){onEdit(et.id,en.trim());setEt(null);}}} disabled={!en.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:en.trim()?T.accent:'#e5e7eb',color:en.trim()?'#fff':T.t4,fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
+                </div>
+                <button onClick={function(){setCd(true);}} style={{padding:'11px 0',borderRadius:12,border:'1px solid #fecaca',background:'#fef2f2',color:T.red,fontSize:11,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',fontWeight:700}}>Delete "{et.name}"</button>
+              </React.Fragment>
+            ):(
+              <React.Fragment>
+                <div style={{fontSize:13,fontWeight:700,color:T.red,textAlign:'center'}}>Delete "{et.name}"?</div>
+                <div style={{fontSize:11,color:T.t3,textAlign:'center',lineHeight:1.7}}>All data will be permanently deleted.</div>
+                <div style={{display:'flex',gap:10}}>
+                  <button onClick={function(){setCd(false);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                  <button onClick={function(){onDelete(et.id);setEt(null);setCd(false);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'none',background:T.red,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Delete</button>
+                </div>
+              </React.Fragment>
+            )}
+          </div>
+        </div>
+      )}
+      {helpOpen&&<HelpModal onClose={function(){setHelpOpen(false);}}/>}
+    </div>
+  );
+}
+function TeamSelector(props){
+  var teams=props.teams,onSelect=props.onSelect,onCreate=props.onCreate,onEdit=props.onEdit,onDelete=props.onDelete,onImport=props.onImport;
+  var crState=useState(false);var cr=crState[0],setCr=crState[1];
   var nmState=useState('');var nm=nmState[0],setNm=nmState[1];
   var etState=useState(null);var et=etState[0],setEt=etState[1];
   var enState=useState('');var en=enState[0],setEn=enState[1];
@@ -2394,18 +3033,46 @@ function App(){
   var numPeriods=numPeriodsState[0],setNumPeriods=numPeriodsState[1];
 
   function saveTeams(list){setTeams(list);lsSet(TLK,list);}
-  function onCreate(name){var t={id:uid(),name:name,createdAt:new Date().toISOString(),playerCount:0,sessionCount:0,totalPoints:0};saveTeams(teams.concat([t]));setActiveTeam(t);}
+  function getTeamFullData(id){return lsGet(TK(id))||{players:[],sessions:[],coaches:{head:emptyCoach(),assistants:[]},schedule:[]};}
+
+  function onCreate(name,coaches,players){
+    var t={id:uid(),name:name,createdAt:new Date().toISOString(),playerCount:players.length,sessionCount:0,totalPoints:0};
+    lsSet(TK(t.id),{players:players||[],sessions:[],coaches:coaches||{head:emptyCoach(),assistants:[]},schedule:[]});
+    saveTeams(teams.concat([t]));
+    setActiveTeam(t);
+  }
   function onEdit(id,name){saveTeams(teams.map(function(t){return t.id===id?Object.assign({},t,{name:name}):t;}));if(activeTeam&&activeTeam.id===id) setActiveTeam(function(a){return Object.assign({},a,{name:name});});}
   function onDelete(id){saveTeams(teams.filter(function(t){return t.id!==id;}));lsDel(TK(id));if(activeTeam&&activeTeam.id===id){setActiveTeam(null);setSessionType(null);setOpponent(null);}}
   function onImport(nt){setTeams(nt);}
   function onMeta(id,u){setTeams(function(prev){var n=prev.map(function(t){return t.id===id?Object.assign({},t,u):t;});lsSet(TLK,n);return n;});}
-  function handleBack(){if(opponent!==null){setOpponent(null);}else if(sessionType!==null){setSessionType(null);}else{setActiveTeam(null);}}
+  function handleBack(){if(sessionType!==null){setSessionType(null);setOpponent(null);}else{setActiveTeam(null);}}
+
+  function handleUpdateTeamData(updates){
+    if(!activeTeam) return;
+    var current=getTeamFullData(activeTeam.id);
+    var merged=Object.assign({},current,updates);
+    lsSet(TK(activeTeam.id),merged);
+    if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
+  }
 
   if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
-  if(!sessionType) return <SessionTypeScreen teamName={activeTeam.name} onSelect={function(t){setSessionType(t);if(t==='Practice') setOpponent('');}} onBack={handleBack}/>;
-  if(sessionType==='Game'&&opponent===null) return <GameSetup teamName={activeTeam.name} onStart={function(opp,np){setOpponent(opp);setNumPeriods(np||4);}} onBack={handleBack}/>;
 
-  var teamData=lsGet(TK(activeTeam.id))||{};
+  if(!sessionType){
+    var td=getTeamFullData(activeTeam.id);
+    return <SessionTypeScreen
+      teamMeta={activeTeam}
+      teamData={td}
+      onStartSession={function(type,opts){
+        setSessionType(type);
+        setOpponent(type==='Practice'?'':((opts&&opts.opponent)||'Opponent'));
+        setNumPeriods((opts&&opts.numPeriods)||4);
+      }}
+      onUpdateData={handleUpdateTeamData}
+      onBack={handleBack}
+    />;
+  }
+
+  var teamData=getTeamFullData(activeTeam.id);
   return (
     <Tracker
       key={activeTeam.id+'-'+sessionType+'-'+(opponent||'')}
