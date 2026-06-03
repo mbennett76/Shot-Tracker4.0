@@ -1360,7 +1360,11 @@ function SessionTypeScreen(props){
                 <div style={{flex:1}}><div style={{fontSize:12,fontWeight:700,color:T.t1}}>{a.name||'Assistant Coach '+(i+1)}</div>{a.cell&&<div style={{fontSize:10,color:T.t3}}>{a.cell}</div>}</div>
                 <div style={{fontSize:9,color:T.t4,fontWeight:700}}>ASST</div>
               </div>;})}
-            </div>
+              {(coaches.assistants||[]).length<3&&<button onClick={function(){
+                var na=(coaches.assistants||[]).concat([emptyCoach()]);
+                saveCoaches(Object.assign({},coaches,{assistants:na}));
+                setEditAstIdx(na.length-1);
+              }} style={{width:'100%',padding:'10px',borderRadius:10,border:'1.5px dashed '+T.border,background:'transparent',color:T.t3,fontSize:12,fontWeight:700,cursor:'pointer',letterSpacing:1}}>+ Add Assistant Coach</button>}            </div>
           </div>
           <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
             <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
