@@ -1,15 +1,11 @@
 const CACHE = 'shottracker-v4';
-const BASE = '/Shot-tracker4.0/';
-const ASSETS = [
-  BASE,
-  BASE + 'index.html',
-  BASE + 'manifest.json',
-  BASE + 'icon-192.png'
-];
+const BASE = '/Shot-Tracker4.0/';
 
 self.addEventListener('install', function(e) {
   e.waitUntil(
-    caches.open(CACHE).then(function(c) { return c.addAll(ASSETS); })
+    caches.open(CACHE).then(function(c) {
+      return c.add(BASE + 'index.html').catch(function() {});
+    })
   );
   self.skipWaiting();
 });
@@ -27,16 +23,18 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
+  if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      return cached || fetch(e.request).then(function(response) {
-        if (!response || response.status !== 200 || response.type !== 'basic') return response;
+    fetch(e.request).then(function(response) {
+      if (response && response.status === 200) {
         var clone = response.clone();
         caches.open(CACHE).then(function(c) { c.put(e.request, clone); });
-        return response;
-      });
+      }
+      return response;
     }).catch(function() {
-      return caches.match(BASE + 'index.html');
+      return caches.match(e.request).then(function(cached) {
+        return cached || caches.match(BASE + 'index.html');
+      });
     })
   );
 });
