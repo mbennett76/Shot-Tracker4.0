@@ -913,6 +913,32 @@ function CoachBlock(props){
   );
 }
 
+// ── Coach Edit Modal (local state — saves only on Done) ────────────────────────
+function CoachEditModal(props){
+  var title=props.title,initial=props.initial,onSave=props.onSave,onClose=props.onClose;
+  var nameState=useState(initial.name||'');var name=nameState[0],setName=nameState[1];
+  var emailState=useState(initial.email||'');var email=emailState[0],setEmail=emailState[1];
+  var cellState=useState(initial.cell||'');var cell=cellState[0],setCell=cellState[1];
+  var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:14,outline:'none',marginBottom:8};
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+      <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:4}}>
+        <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:14}}>{title}</div>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Name</div>
+        <input value={name} onChange={function(e){setName(e.target.value);}} placeholder="Full name" maxLength={40} style={iS}/>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Email</div>
+        <input value={email} onChange={function(e){setEmail(e.target.value);}} placeholder="Email address" maxLength={60} style={iS}/>
+        <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5}}>Cell</div>
+        <input value={cell} onChange={function(e){setCell(e.target.value);}} placeholder="Cell phone" maxLength={20} style={Object.assign({},iS,{marginBottom:16})}/>
+        <div style={{display:'flex',gap:10}}>
+          <button onClick={onClose} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:13,cursor:'pointer',fontWeight:600}}>Cancel</button>
+          <button onClick={function(){onSave({name:name.trim(),email:email.trim(),cell:cell.trim()});}} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Multi-Step New Team Modal ──────────────────────────────────────────────────
 function MultiStepTeamModal(props){
   var onDone=props.onDone,onCancel=props.onCancel;
@@ -1389,20 +1415,18 @@ function SessionTypeScreen(props){
         </div>
       )}
       {editPlayer&&<PlayerContactModal player={editPlayer} onSave={function(updates){savePlayers(players.map(function(p){return p.id===editPlayer.id?Object.assign({},p,updates):p;}));setEditPlayer(null);}} onClose={function(){setEditPlayer(null);}}/>}
-      {editHead&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
-        <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:14}}>
-          <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase'}}>Head Coach</div>
-          <CoachBlock label="Head Coach" value={coaches.head||emptyCoach()} onChange={function(v){saveCoaches(Object.assign({},coaches,{head:v}));}}/>
-          <button onClick={function(){setEditHead(false);}} style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Done</button>
-        </div>
-      </div>}
-      {editAstIdx!==null&&<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
-        <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:380,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:14}}>
-          <div style={{fontSize:14,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase'}}>Assistant Coach {editAstIdx+1}</div>
-          <CoachBlock label={'Assistant Coach '+(editAstIdx+1)} value={(coaches.assistants||[])[editAstIdx]||emptyCoach()} onChange={function(v){var na=(coaches.assistants||[]).slice();na[editAstIdx]=v;saveCoaches(Object.assign({},coaches,{assistants:na}));}}/>
-          <button onClick={function(){setEditAstIdx(null);}} style={{padding:'13px',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Done</button>
-        </div>
-      </div>}
+      {editHead&&<CoachEditModal
+        title="Head Coach"
+        initial={coaches.head||emptyCoach()}
+        onSave={function(v){saveCoaches(Object.assign({},coaches,{head:v}));setEditHead(false);}}
+        onClose={function(){setEditHead(false);}}
+      />}
+      {editAstIdx!==null&&<CoachEditModal
+        title={'Assistant Coach '+(editAstIdx+1)}
+        initial={(coaches.assistants||[])[editAstIdx]||emptyCoach()}
+        onSave={function(v){var na=(coaches.assistants||[]).slice();na[editAstIdx]=v;saveCoaches(Object.assign({},coaches,{assistants:na}));setEditAstIdx(null);}}
+        onClose={function(){setEditAstIdx(null);}}
+      />}
     </div>
   );
 }
