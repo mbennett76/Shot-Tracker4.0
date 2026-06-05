@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Shot Tracker">
@@ -255,8 +255,8 @@ function StatTile(props){
   function cl(){clearTimeout(t.current);f.current=true;}
   return (
     <div onPointerDown={dn} onPointerUp={up} onPointerLeave={cl} onPointerCancel={cl}
-      style={{background:color+'18',borderRadius:8,border:'1px solid '+color+'55',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',position:'relative',overflow:'hidden',height:52,flex:1}}>
-      <div style={{fontSize:11,color:color,fontWeight:900,letterSpacing:0.5,textTransform:'uppercase',textAlign:'center',lineHeight:1,zIndex:2,position:'relative',padding:'0 2px'}}>{label}</div>
+      style={{background:color+'18',borderRadius:8,border:'1px solid '+color+'55',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',position:'relative',overflow:'hidden',height:68,flex:1}}>
+      <div style={{fontSize:19,color:color,fontWeight:900,letterSpacing:0,textTransform:'uppercase',textAlign:'center',lineHeight:1,zIndex:2,position:'relative',padding:'0 2px',whiteSpace:'nowrap'}}>{label}</div>
       <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',fontSize:34,fontWeight:900,color:color,opacity:0.15,lineHeight:1,zIndex:1,pointerEvents:'none'}}>{value}</div>
       <div style={{position:'absolute',bottom:3,right:5,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8,lineHeight:1,zIndex:2}}>{value}</div>
     </div>
@@ -1224,10 +1224,11 @@ function SessionTypeScreen(props){
   var editHeadState=useState(false);var editHead=editHeadState[0],setEditHead=editHeadState[1];
   var editAstIdxState=useState(null);var editAstIdx=editAstIdxState[0],setEditAstIdx=editAstIdxState[1];
   var historyViewState=useState(null);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
+  var showPastState=useState(true);var showPast=showPastState[0],setShowPast=showPastState[1];
 
-  var now=new Date();now.setHours(0,0,0,0);
-  var upcoming=schedule.filter(function(e){return new Date(e.date+'T12:00:00')>=now;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
-  var past=schedule.filter(function(e){return new Date(e.date+'T12:00:00')<now;}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  var todayDateStr=todayStr();
+  var upcoming=schedule.filter(function(e){return e.date>=todayDateStr;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
+  var past=schedule.filter(function(e){return e.date<todayDateStr;}).sort(function(a,b){return b.date.localeCompare(a.date);});
 
   function saveSchedule(newSched){onUpdateData({schedule:newSched});}
   function saveCoaches(newCoaches){onUpdateData({coaches:newCoaches});}
@@ -1314,10 +1315,13 @@ function SessionTypeScreen(props){
             </div>
           </div>}
           {past.length>0&&<div>
-            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',margin:'8px 0 8px'}}>Past</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <button onClick={function(){setShowPast(function(s){return !s;});}} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:T.card,border:'1px solid '+T.border,borderRadius:10,padding:'10px 14px',cursor:'pointer',marginBottom:showPast?8:0}}>
+              <div style={{fontSize:9,color:T.t3,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Past Events ({past.length})</div>
+              <div style={{fontSize:14,color:T.t4,fontWeight:700}}>{showPast?'▴':'▾'}</div>
+            </button>
+            {showPast&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
               {past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}
-            </div>
+            </div>}
           </div>}
         </div>
       )}
@@ -1334,8 +1338,11 @@ function SessionTypeScreen(props){
             <div style={{display:'flex',flexDirection:'column',gap:8}}>{upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}</div>
           </div>}
           {past.length>0&&<div>
-            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Past</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>{past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}</div>
+            <button onClick={function(){setShowPast(function(s){return !s;});}} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:T.card,border:'1px solid '+T.border,borderRadius:10,padding:'10px 14px',cursor:'pointer',marginBottom:showPast?8:0}}>
+              <div style={{fontSize:9,color:T.t3,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Past Events ({past.length})</div>
+              <div style={{fontSize:14,color:T.t4,fontWeight:700}}>{showPast?'▴':'▾'}</div>
+            </button>
+            {showPast&&<div style={{display:'flex',flexDirection:'column',gap:8}}>{past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}</div>}
           </div>}
         </div>
       )}
@@ -1438,6 +1445,41 @@ function SessionTypeScreen(props){
 // ── Game Setup ─────────────────────────────────────────────────────────────────
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
+
+// ── Assist Popup ───────────────────────────────────────────────────────────────
+function AssistPopup(props){
+  var shooterId=props.shooterId,onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
+  var assistCandidates=onFloorPlayers.filter(function(p){return p.id!==shooterId;});
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
+        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
+        <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist</div>
+        <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Who assisted the basket?</div>
+        {assistCandidates.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No other players on floor.</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
+          {assistCandidates.map(function(p){
+            var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+            var col=pc(p,pIdx);
+            return (
+              <button key={p.id} onClick={function(){onAssist(p.id);}}
+                style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',
+                  color:col,fontSize:26,fontWeight:900,cursor:'pointer',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                {p.number}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={function(){onAssist(null);}}
+          style={{width:'100%',padding:'13px',borderRadius:12,border:'1px solid '+T.border,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase'}}>
+          No Assist
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
@@ -1614,6 +1656,8 @@ function Tracker(props){
   var awaitCourt=awaitCourtState[0],setAwaitCourt=awaitCourtState[1];
   var awaitReboundState=useState(null);
   var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
+  var awaitAssistState=useState(null);
+  var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -1734,6 +1778,7 @@ function Tracker(props){
     vib(50);setAwaitCourt(null);setMode(null);
     clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
     if(!make&&isGame) setAwaitRebound({shooter:'home'});
+    if(make&&isGame&&!isFT) setAwaitAssist({shooterId:targetPid});
   },[awaitCourt,isGame,pDrafts,gs,players]);
 
   function recordFT(make,targetPid){
@@ -1873,6 +1918,23 @@ function Tracker(props){
     }
   }
 
+  function handleAssist(playerId){
+    setAwaitAssist(null);
+    if(!playerId) return;
+    var targetPlayer=players.find(function(p){return p.id===playerId;});
+    var entry={id:Date.now(),q:gs.q,team:'home',player:targetPlayer?targetPlayer.number:'?',action:'AST',pts:0,ts:new Date().toISOString()};
+    setGs(function(g){
+      if(!g.pdata[playerId]) return g;
+      var newQs=g.pdata[playerId].qs.map(function(q,i){return i===g.q-1?Object.assign({},q,{ast:Math.max(0,(q.ast||0)+1)}):q;});
+      var newPdata=Object.assign({},g.pdata);
+      newPdata[playerId]=Object.assign({},g.pdata[playerId],{qs:newQs});
+      return Object.assign({},g,{pdata:newPdata,playLog:(g.playLog||[]).concat([entry])});
+    });
+    setNotice({label:'AST · #'+(targetPlayer?targetPlayer.number:'?'),make:true});
+    clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2000);
+    vib(40);
+  }
+
   function handleUndo(){
     if(isGame){
       setGs(function(g){
@@ -1993,8 +2055,8 @@ function Tracker(props){
     },0);
   }
 
-  var STAT_ROW1=[GSTATS[0],GSTATS[1],GSTATS[2],GSTATS[3]]; // oReb,dReb,to,ast
-  var STAT_ROW2=[GSTATS[4],GSTATS[6],GSTATS[5]]; // blk,foul,stl
+  var STAT_ROW1=[GSTATS[6],GSTATS[2],GSTATS[5],GSTATS[4]]; // foul,to,stl,blk
+  var STAT_ROW2=[GSTATS[3],GSTATS[0],GSTATS[1]]; // ast,oReb,dReb
 
   return (
     <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 12px 40px',maxWidth:520,margin:'0 auto',width:'100%'}}>
@@ -2144,12 +2206,13 @@ function Tracker(props){
                     var totVal=getStatTotal(s.key);
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
-                        style={{flex:1,height:58,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:11,fontWeight:900,
-                          letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
-                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-                        <div>{s.label}</div>
-                        {totVal>0&&<div style={{position:'absolute',bottom:4,right:6,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8}}>{totVal}</div>}
+                        style={{flex:1,height:66,borderRadius:10,border:'1px solid '+s.color+'55',
+                          background:s.color+'18',color:s.color,fontSize:18,fontWeight:900,
+                          letterSpacing:0,cursor:'pointer',textTransform:'uppercase',
+                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
+                          display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
+                        <div style={{textAlign:'center',whiteSpace:'nowrap'}}>{s.label}</div>
+                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:13,fontWeight:900,color:T.t1,opacity:0.75,lineHeight:1}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -2159,12 +2222,13 @@ function Tracker(props){
                     var totVal=getStatTotal(s.key);
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
-                        style={{flex:1,height:58,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:11,fontWeight:900,
-                          letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
-                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-                        <div>{s.label}</div>
-                        {totVal>0&&<div style={{position:'absolute',bottom:4,right:6,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8}}>{totVal}</div>}
+                        style={{flex:1,height:66,borderRadius:10,border:'1px solid '+s.color+'55',
+                          background:s.color+'18',color:s.color,fontSize:18,fontWeight:900,
+                          letterSpacing:0,cursor:'pointer',textTransform:'uppercase',
+                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
+                          display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
+                        <div style={{textAlign:'center',whiteSpace:'nowrap'}}>{s.label}</div>
+                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:13,fontWeight:900,color:T.t1,opacity:0.75,lineHeight:1}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -2226,6 +2290,14 @@ function Tracker(props){
         onFloorPlayers={sortedActive}
         players={players}
         onRebound={handleRebound}
+      />}
+
+      {/* Assist popup */}
+      {awaitAssist&&isGame&&<AssistPopup
+        shooterId={awaitAssist.shooterId}
+        onFloorPlayers={sortedActive}
+        players={players}
+        onAssist={handleAssist}
       />}
 
       {/* Substitution popup */}
@@ -2325,7 +2397,7 @@ function generateReport(sessions,players,teamMeta){
   var teamTotals={pts:0,pf:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0,oReb:0,dReb:0,ast:0,stl:0,blk:0};
   players.forEach(function(p){
     var sess=gameSess.find(function(s){return s.playerId===p.id;});
-    if(!sess) return;
+    if(!sess||!(hasDraftQ(sess.quarterData||[])||(sess.shots||[]).length>0||(sess.ftShots||[]).length>0)) return;
     var sh=sess.shots||[];
     var ft=sess.ftShots||[];
     var fg2sh=sh.filter(function(s){return s.type!=='3-Pointer';});
@@ -2337,6 +2409,7 @@ function generateReport(sessions,players,teamMeta){
     var row={
       num:p.number,name:p.name||'',
       pts:pts,pf:sess.foul||0,
+      fgm:fg2m+fg3m,fga:sh.length,
       fgStr:fgStr(sh),fg2Str:fg2m+'-'+fg2sh.length,fg3Str:fg3m+'-'+fg3sh.length,ftStr:ftStr(ft),
       to:sess.to||0,oReb:sess.oReb||0,dReb:sess.dReb||0,reb:(sess.oReb||0)+(sess.dReb||0),
       ast:sess.ast||0,stl:sess.stl||0,blk:sess.blk||0,pm:sess.plusMinus!=null?sess.plusMinus:0
@@ -2362,6 +2435,13 @@ function generateReport(sessions,players,teamMeta){
     var qd=(oppData.quarters||[])[idx]||EMPTY_OPP();
     return oppQPts(qd);
   }
+  var myQTotals=pN.map(function(n,i){return periodScore(gameSess,i);});
+  var oppQTotals=pN.map(function(n,i){return oppPeriodScore(i);});
+  var myQSum=myQTotals.reduce(function(a,b){return a+b;},0);
+  var oppQSum=oppQTotals.reduce(function(a,b){return a+b;},0);
+  // Use saved final score for total (includes any manual adjustments), fall back to sum
+  var myFinalScore=gameScore.my;
+  var oppFinalScore=gameScore.opp;
 
   // Shot chart SVG for a player
   function shotChartSVG(sess){
@@ -2398,7 +2478,7 @@ function generateReport(sessions,players,teamMeta){
       '<path d="M '+kL+' '+ftYs+' A '+ftR+' '+ftR+' 0 0 0 '+kR+' '+ftYs+'" stroke="white" stroke-width="1" fill="none"/>'+
       '<path d="M '+kL+' '+ftYs+' A '+ftR+' '+ftR+' 0 0 1 '+kR+' '+ftYs+'" stroke="white" stroke-width="1" fill="none" stroke-dasharray="4 3"/>'+
       '<circle cx="'+bxS+'" cy="'+byS+'" r="'+Math.round(11*scale)+'" fill="none" stroke="white" stroke-width="1"/>'+
-      '<path d="M '+corL+' '+basY+' A '+threeR+' '+threeR+' 0 0 1 '+corR+' '+basY+'" stroke="white" stroke-width="1" fill="none"/>'+
+      '<path d="M '+corL+' '+corArcY+' A '+threeR+' '+threeR+' 0 0 1 '+corR+' '+corArcY+'" stroke="white" stroke-width="1" fill="none"/>'+
       '<line x1="'+corL+'" y1="'+basY+'" x2="'+corL+'" y2="'+corArcY+'" stroke="white" stroke-width="1"/>'+
       '<line x1="'+corR+'" y1="'+basY+'" x2="'+corR+'" y2="'+corArcY+'" stroke="white" stroke-width="1"/>'+
       '<line x1="0" y1="'+basY+'" x2="320" y2="'+basY+'" stroke="white" stroke-width="1"/>'+
@@ -2408,17 +2488,18 @@ function generateReport(sessions,players,teamMeta){
 
   // Build HTML
   var periodHeaders=pN.map(function(n){return '<th style="width:50px">'+n+'</th>';}).join('');
-  var myPeriodCells=pN.map(function(n,i){return '<td style="text-align:center;font-weight:500;">'+periodScore(gameSess,i)+'</td>';}).join('');
-  var oppPeriodCells=pN.map(function(n,i){return '<td style="text-align:center;">'+oppPeriodScore(i)+'</td>';}).join('');
+  var myPeriodCells=myQTotals.map(function(v){return '<td style="text-align:center;font-weight:500;">'+v+'</td>';}).join('');
+  var oppPeriodCells=oppQTotals.map(function(v){return '<td style="text-align:center;">'+v+'</td>';}).join('');
 
   var playerRows=rows.map(function(r){
     var pmStr=r.pm>0?'+'+r.pm:(r.pm===0?'0':String(r.pm));
     var pmColor=r.pm>0?'#16a34a':r.pm<0?'#dc2626':'#374151';
     var dispName=(r.name?r.name+', ':'')+'#'+r.num;
+    var fgPct=r.fga>0?Math.round(r.fgm/r.fga*100)+'%':'—';
     return '<tr>'+
       '<td style="text-align:left;padding:5px 8px;font-size:12px;">'+dispName+'</td>'+
       '<td>'+r.pts+'</td><td>'+r.pf+'</td>'+
-      '<td>'+r.fgStr+'</td><td>'+r.fg3Str+'</td><td>'+r.ftStr+'</td>'+
+      '<td>'+r.fgStr+'</td><td>'+fgPct+'</td><td>'+r.fg3Str+'</td><td>'+r.ftStr+'</td>'+
       '<td>'+r.to+'</td><td>'+r.oReb+'</td><td>'+r.dReb+'</td><td>'+r.reb+'</td>'+
       '<td>'+r.ast+'</td><td>'+r.stl+'</td><td>'+r.blk+'</td>'+
       '<td style="color:'+pmColor+';font-weight:600;">'+pmStr+'</td>'+
@@ -2520,6 +2601,10 @@ function generateReport(sessions,players,teamMeta){
     '.footer{margin-top:22px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;}'+
     '.brand{font-size:11px;font-weight:600;color:#6b7280;letter-spacing:2px;text-transform:uppercase;}'+
     '.date{font-size:11px;color:#9ca3af;}'+
+    '.close-bar{position:fixed;top:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.2);}'+
+    '.close-bar span{color:#fff;font-size:13px;font-weight:600;letter-spacing:1px;}'+
+    '.close-btn{background:#fff;border:none;color:#1e3a5f;font-size:13px;font-weight:700;padding:6px 18px;border-radius:20px;cursor:pointer;letter-spacing:1px;}'+
+    '@media print{.close-bar{display:none;}}'+
     '.player-page{}'+
     '.player-header{display:flex;align-items:center;gap:14px;margin-bottom:14px;}'+
     '.player-num{width:50px;height:50px;border-radius:50%;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#fff;flex-shrink:0;}'+
@@ -2534,6 +2619,8 @@ function generateReport(sessions,players,teamMeta){
     '.sb-label{font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
     '.sb-val{font-size:17px;font-weight:600;color:#111;}.sb-pct{font-size:11px;color:#6b7280;}'+
   '</style></head><body>'+
+  '<div class="close-bar"><span>ShotTracker 4.0 — Game Report</span><button class="close-btn" onclick="window.close()">✕ Close</button></div>'+
+  '<div style="height:48px;"></div>'+
   '<div class="page">'+
     '<h1>'+teamMeta.name+' <strong>'+gameScore.my+'</strong> &ndash; '+opp+' <strong>'+gameScore.opp+'</strong></h1>'+
     '<h3>'+gDate+' · ShotTracker 4.0</h3>'+
@@ -2543,15 +2630,15 @@ function generateReport(sessions,players,teamMeta){
       '<div class="sb-head" style="font-weight:700;color:#111;">T</div>'+
       '<div class="sb-cell-s" style="padding-left:12px;font-weight:600;">'+teamMeta.name+'</div>'+
       myPeriodCells+
-      '<div class="sb-cell-s sb-total" style="text-align:center;">'+gameScore.my+'</div>'+
+      '<div class="sb-cell-s sb-total" style="text-align:center;">'+myFinalScore+'</div>'+
       '<div class="sb-cell-s" style="padding-left:12px;">'+opp+'</div>'+
       oppPeriodCells+
-      '<div class="sb-cell-s sb-total" style="text-align:center;">'+gameScore.opp+'</div>'+
+      '<div class="sb-cell-s sb-total" style="text-align:center;">'+oppFinalScore+'</div>'+
     '</div>'+
     '<h2>'+teamMeta.name+'</h2>'+
     '<table><thead><tr>'+
       '<th class="left" style="min-width:120px;">Player</th>'+
-      '<th>PTS</th><th>PF</th><th>FG</th><th>3PT</th><th>FT</th>'+
+      '<th>PTS</th><th>PF</th><th>FG</th><th>FG%</th><th>3PT</th><th>FT</th>'+
       '<th>TO</th><th>ORB</th><th>DRB</th><th>REB</th>'+
       '<th>AST</th><th>STL</th><th>BLK</th><th>+/&minus;</th>'+
     '</tr></thead><tbody>'+
@@ -2559,7 +2646,7 @@ function generateReport(sessions,players,teamMeta){
     '<tr class="totals">'+
       '<td class="left">Totals</td>'+
       '<td>'+teamTotals.pts+'</td><td>'+teamTotals.pf+'</td>'+
-      '<td>'+totFgStr+'</td><td>'+totFg3Str+'</td><td>'+totFtStr+'</td>'+
+      '<td>'+totFgStr+'</td><td>'+(teamTotals.fg2a+teamTotals.fg3a>0?Math.round((teamTotals.fg2m+teamTotals.fg3m)/(teamTotals.fg2a+teamTotals.fg3a)*100)+'%':'—')+'</td><td>'+totFg3Str+'</td><td>'+totFtStr+'</td>'+
       '<td>'+teamTotals.to+'</td><td>'+teamTotals.oReb+'</td><td>'+teamTotals.dReb+'</td><td>'+totReb+'</td>'+
       '<td>'+teamTotals.ast+'</td><td>'+teamTotals.stl+'</td><td>'+teamTotals.blk+'</td><td>0</td>'+
     '</tr></tbody></table>'+
