@@ -636,7 +636,7 @@ function SCard(props){
 
 // ── History View ───────────────────────────────────────────────────────────────
 function HistoryView(props){
-  var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions,onDelSession=props.onDelSession;
+  var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions,onDelSession=props.onDelSession,onRecalcSessions=props.onRecalcSessions;
   var defaultSession=props.defaultSession||null;
   var hvState=useState(defaultSession?'session':'overview');
   var hv=hvState[0],setHv=hvState[1];
@@ -678,6 +678,72 @@ function HistoryView(props){
     GSTATS.forEach(function(g){statTotals[g.key]=ps.reduce(function(a,s){return a+(s[g.key]||0);},0);});
     return Object.assign({},p,{col:pc(p,i),idx:i,sessions:ps.length,makes:m,shots:sh.length,pct:sh.length?Math.round(m/sh.length*100):null,pts:calcPts(sh,ft),trend:tr,gamePct:gSh2.length?Math.round(gSh2.filter(function(s){return s.make;}).length/gSh2.length*100):null,pracPct:prSh2.length?Math.round(prSh2.filter(function(s){return s.make;}).length/prSh2.length*100):null,avgPM:avgPM},statTotals);
   });
+
+  function recalculateFromLog(gameSessions){
+    if(!gameSessions||!gameSessions.length) return;
+    var ref=gameSessions[0];
+    var log=ref.playLog||[];
+    if(!log.length){alert('No play log found for this game.');return;}
+    var numQ=ref.numPeriods||4;
+    // Build a map of playerNumber -> player
+    var numToPlayer={};
+    players.forEach(function(p){numToPlayer[p.number]=p;});
+    // Build per-player stats from log
+    var pStats={};// pid -> {qs:[{shots,ftShots,ast,oReb,dReb,to,foul,stl,blk}]}
+    players.forEach(function(p){
+      pStats[p.id]={qs:[]};
+      for(var i=0;i<numQ;i++) pStats[p.id].qs.push({shots:[],ftShots:[],ast:0,oReb:0,dReb:0,to:0,foul:0,stl:0,blk:0});
+    });
+    var statKeyMap={'AST':'ast','O REB':'oReb','D REB':'dReb','TO':'to','FOUL':'foul','STL':'stl','BLK':'blk',
+      'Assist':'ast','Turnover':'to','Foul':'foul','Steal':'stl','Block':'blk','Off Rebound':'oReb','Def Rebound':'dReb'};
+    log.forEach(function(entry){
+      if(entry.team!=='home') return;
+      var p=numToPlayer[entry.player];
+      if(!p) return;
+      var qi=Math.max(0,Math.min((entry.q||1)-1,numQ-1));
+      var qd=pStats[p.id].qs[qi];
+      var act=entry.action||'';
+      if(act.indexOf('Made')===0||act.indexOf('Missed')===0){
+        var make=act.indexOf('Made')===0;
+        var isFT=act.indexOf('Free Throw')>-1;
+        var is3=act.indexOf('3-Pointer')>-1;
+        var shotObj={id:entry.id||Date.now(),make:make,type:isFT?'Free Throw':(is3?'3-Pointer':'2-Pointer'),ts:entry.ts};
+        if(isFT) qd.ftShots.push(shotObj);
+        else qd.shots.push(shotObj);
+      } else {
+        var sKey=statKeyMap[act];
+        if(sKey) qd[sKey]=(qd[sKey]||0)+1;
+      }
+    });
+    // Now rebuild sessions — keep existing non-game sessions, replace game sessions
+    var otherSessions=sessions.filter(function(s){return !(s.sessionType==='Game'&&s.label===ref.label&&s.date===ref.date&&s.opponent===ref.opponent);});
+    var newGameSessions=[];
+    players.forEach(function(p){
+      var pd=pStats[p.id];
+      if(!hasDraftQ(pd.qs)) return;// skip players with zero activity
+      var allSh=pd.qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
+      var allFT=pd.qs.reduce(function(a,q){return a.concat(q.ftShots||[]);},[] );
+      var totStats={};
+      GSTATS.forEach(function(g){totStats[g.key]=pd.qs.reduce(function(a,q){return a+(q[g.key]||0);},0);});
+      // Find existing session for this player to preserve plusMinus, gameScore etc
+      var existing=gameSessions.find(function(s){return s.playerId===p.id;});
+      var rec=Object.assign({},existing||{},{
+        id:(existing&&existing.id)||(Date.now().toString()+'-'+p.id),
+        date:ref.date,label:ref.label,sessionType:'Game',opponent:ref.opponent,
+        numPeriods:numQ,playerId:p.id,playerNumber:p.number,
+        shots:allSh,ftShots:allFT,
+        gameScore:ref.gameScore,
+        opponentData:ref.opponentData,
+        playLog:log,
+        quarterData:pd.qs,
+        recalcAt:new Date().toISOString()
+      },totStats);
+      newGameSessions.push(rec);
+    });
+    var ns=newGameSessions.concat(otherSessions);
+    onRecalcSessions(ns);
+    alert('Recalculated stats for '+newGameSessions.length+' players from play log.');
+  }
 
   var hp=hpData?hpData.p:null;
   var hpI=hpData?hpData.i:0;
@@ -748,10 +814,20 @@ function HistoryView(props){
       })()}
       {viewing.sessionType==='Game'&&(function(){
         var sameSess=sessions.filter(function(s){return s.sessionType==='Game'&&s.label===viewing.label&&s.date===viewing.date&&s.opponent===viewing.opponent;});
-        return <button onClick={function(){generateReport(sameSess,players,teamMeta);}}
-          style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>
-          📄 Export Game Report
-        </button>;
+        return (
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <button onClick={function(){generateReport(sameSess,players,teamMeta);}}
+              style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>
+              📄 Export Game Report
+            </button>
+            {viewing.playLog&&viewing.playLog.length>0&&
+              <button onClick={function(){recalculateFromLog(sameSess);}}
+                style={{width:'100%',padding:'13px 0',borderRadius:12,border:'2px solid #d97706',background:'#fffbeb',color:'#92400e',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase'}}>
+                🔄 Recalculate Stats from Play Log
+              </button>
+            }
+          </div>
+        );
       })()}
       <div><div style={{fontSize:10,letterSpacing:2,color:T.t3,textTransform:'uppercase',marginBottom:7,fontWeight:700}}>Shot Analysis</div><SPanel shots={viewing.shots||[]} ftShots={viewing.ftShots||[]}/></div>
       {viewing.playLog&&viewing.playLog.length>0&&
@@ -1446,6 +1522,135 @@ function SessionTypeScreen(props){
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
 
+// ── In-Game Box Score ──────────────────────────────────────────────────────────
+function InGameBoxScore(props){
+  var gs=props.gs,players=props.players,myScore=props.myScore,oppScore=props.oppScore,opponent=props.opponent,numPeriods=props.numPeriods;
+  var C={padding:'6px 5px',textAlign:'center',fontSize:11,borderBottom:'1px solid '+T.border,color:T.t2,whiteSpace:'nowrap'};
+  var H={padding:'5px 5px',textAlign:'center',fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',borderBottom:'2px solid '+T.border,whiteSpace:'nowrap'};
+
+  // Build rows for each player
+  var rows=[];
+  var totals={pts:0,fgm:0,fga:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,oReb:0,dReb:0,ast:0,stl:0,blk:0,to:0,pf:0};
+
+  players.forEach(function(p,i){
+    var pd=gs.pdata[p.id];
+    if(!pd) return;
+    var qs=pd.qs||[];
+    var allSh=qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
+    var allFT=qs.reduce(function(a,q){return a.concat(q.ftShots||[]);},[] );
+    var fg3sh=allSh.filter(function(s){return s.type==='3-Pointer';});
+    var fg2sh=allSh.filter(function(s){return s.type!=='3-Pointer';});
+    var fgm=allSh.filter(function(s){return s.make;}).length;
+    var fg3m=fg3sh.filter(function(s){return s.make;}).length;
+    var ftm=allFT.filter(function(s){return s.make;}).length;
+    var pts=fg2sh.filter(function(s){return s.make;}).length*2+fg3m*3+ftm;
+    var oReb=qs.reduce(function(a,q){return a+(q.oReb||0);},0);
+    var dReb=qs.reduce(function(a,q){return a+(q.dReb||0);},0);
+    var ast=qs.reduce(function(a,q){return a+(q.ast||0);},0);
+    var stl=qs.reduce(function(a,q){return a+(q.stl||0);},0);
+    var blk=qs.reduce(function(a,q){return a+(q.blk||0);},0);
+    var to=qs.reduce(function(a,q){return a+(q.to||0);},0);
+    var pf=qs.reduce(function(a,q){return a+(q.foul||0);},0);
+    var isOn=pd.active!==false;
+    var col=pc(p,i);
+    totals.pts+=pts;totals.fgm+=fgm;totals.fga+=allSh.length;
+    totals.fg3m+=fg3m;totals.fg3a+=fg3sh.length;
+    totals.ftm+=ftm;totals.fta+=allFT.length;
+    totals.oReb+=oReb;totals.dReb+=dReb;totals.reb+=(oReb+dReb);
+    totals.ast+=ast;totals.stl+=stl;totals.blk+=blk;totals.to+=to;totals.pf+=pf;
+    rows.push({p:p,col:col,isOn:isOn,pts:pts,fgm:fgm,fga:allSh.length,fg3m:fg3m,fg3a:fg3sh.length,ftm:ftm,fta:allFT.length,reb:oReb+dReb,ast:ast,stl:stl,blk:blk,to:to,pf:pf});
+  });
+
+  var fgPct=totals.fga>0?Math.round(totals.fgm/totals.fga*100)+'%':'—';
+
+  return (
+    <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
+      {/* Score summary */}
+      <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div style={{textAlign:'center',flex:1}}>
+          <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:2}}>Your Team</div>
+          <div style={{fontSize:36,fontWeight:900,color:T.accent,lineHeight:1}}>{myScore}</div>
+        </div>
+        <div style={{fontSize:13,color:T.t4,fontWeight:700,padding:'0 12px'}}>vs</div>
+        <div style={{textAlign:'center',flex:1}}>
+          <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:2}}>{opponent||'Opponent'}</div>
+          <div style={{fontSize:36,fontWeight:900,color:T.t2,lineHeight:1}}>{oppScore}</div>
+        </div>
+      </div>
+
+      {/* Box score table */}
+      <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
+        <div style={{padding:'8px 14px',background:T.bg,borderBottom:'1px solid '+T.border,fontSize:9,color:T.t2,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>
+          Box Score — Full Game
+        </div>
+        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
+          <table style={{width:'100%',minWidth:520,borderCollapse:'collapse'}}>
+            <thead>
+              <tr style={{background:T.bg}}>
+                <th style={{...H,textAlign:'left',paddingLeft:10,minWidth:60}}>PLAYER</th>
+                <th style={H}>PTS</th>
+                <th style={H}>FG</th>
+                <th style={H}>FG%</th>
+                <th style={H}>3PT</th>
+                <th style={H}>FT</th>
+                <th style={H}>REB</th>
+                <th style={H}>AST</th>
+                <th style={H}>STL</th>
+                <th style={H}>BLK</th>
+                <th style={H}>TO</th>
+                <th style={H}>PF</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(function(r,i){
+                var fgP=r.fga>0?Math.round(r.fgm/r.fga*100)+'%':'—';
+                return (
+                  <tr key={r.p.id} style={{background:i%2===0?'transparent':T.bg+'66',opacity:r.isOn?1:0.55}}>
+                    <td style={{...C,textAlign:'left',paddingLeft:10}}>
+                      <div style={{display:'flex',alignItems:'center',gap:5}}>
+                        <div style={{width:6,height:6,borderRadius:'50%',background:r.col,flexShrink:0}}/>
+                        <span style={{fontWeight:700,color:r.col,fontSize:12}}>#{r.p.number}</span>
+                        {!r.isOn&&<span style={{fontSize:8,color:T.t4,fontWeight:600}}>BN</span>}
+                      </div>
+                    </td>
+                    <td style={{...C,fontWeight:900,color:T.t1,fontSize:13}}>{r.pts}</td>
+                    <td style={C}>{r.fgm+'-'+r.fga}</td>
+                    <td style={{...C,color:r.fga>0?(r.fgm/r.fga>=0.5?T.green:T.red):T.t4,fontWeight:700}}>{fgP}</td>
+                    <td style={C}>{r.fg3m+'-'+r.fg3a}</td>
+                    <td style={C}>{r.ftm+'-'+r.fta}</td>
+                    <td style={C}>{r.reb}</td>
+                    <td style={C}>{r.ast}</td>
+                    <td style={C}>{r.stl}</td>
+                    <td style={C}>{r.blk}</td>
+                    <td style={C}>{r.to}</td>
+                    <td style={C}>{r.pf}</td>
+                  </tr>
+                );
+              })}
+              {/* Totals row */}
+              <tr style={{background:T.accent+'18',borderTop:'2px solid '+T.accent+'44'}}>
+                <td style={{...C,textAlign:'left',paddingLeft:10,fontWeight:900,color:T.accent,fontSize:10,letterSpacing:1}}>TEAM</td>
+                <td style={{...C,fontWeight:900,color:T.t1,fontSize:13}}>{totals.pts}</td>
+                <td style={C}>{totals.fgm+'-'+totals.fga}</td>
+                <td style={{...C,fontWeight:700,color:totals.fga>0?(totals.fgm/totals.fga>=0.5?T.green:T.red):T.t4}}>{fgPct}</td>
+                <td style={C}>{totals.fg3m+'-'+totals.fg3a}</td>
+                <td style={C}>{totals.ftm+'-'+totals.fta}</td>
+                <td style={C}>{totals.reb}</td>
+                <td style={C}>{totals.ast}</td>
+                <td style={C}>{totals.stl}</td>
+                <td style={C}>{totals.blk}</td>
+                <td style={C}>{totals.to}</td>
+                <td style={C}>{totals.pf}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style={{padding:'6px 14px',fontSize:9,color:T.t4,letterSpacing:1}}>BN = bench · scroll right for all stats</div>
+      </div>
+    </div>
+  );
+}
+
 // ── Assist Popup ───────────────────────────────────────────────────────────────
 function AssistPopup(props){
   var shooterId=props.shooterId,onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
@@ -1972,7 +2177,7 @@ function Tracker(props){
       var oppTotal=(gs.oppQs||[]).reduce(function(a,q){return {fg2m:a.fg2m+(q.fg2m||0),fg2a:a.fg2a+(q.fg2a||0),fg3m:a.fg3m+(q.fg3m||0),fg3a:a.fg3a+(q.fg3a||0),ftm:a.ftm+(q.ftm||0),fta:a.fta+(q.fta||0),oReb:a.oReb+(q.oReb||0),dReb:a.dReb+(q.dReb||0),to:a.to+(q.to||0),foul:a.foul+(q.foul||0)};},EMPTY_OPP());
       var oppData={quarters:(gs.oppQs||[]).map(function(q){return Object.assign({},q);}),total:oppTotal};
       var savedLog=gs.playLog||[];
-      players.filter(function(p){return gs.pdata[p.id]&&gs.pdata[p.id].active!==false;}).forEach(function(p){
+      players.filter(function(p){return gs.pdata[p.id];}).forEach(function(p){
         var pd=gs.pdata[p.id];
         if(!pd||!hasDraftQ(pd.qs)) return;
         var allSh=pd.qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
@@ -2071,7 +2276,7 @@ function Tracker(props){
       {/* Tabs */}
       <div style={{width:'100%',display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
         <div style={{display:'flex',background:T.card,borderRadius:12,border:'1px solid '+T.border,overflow:'hidden',flex:1,boxShadow:T.shadow}}>
-          {(isGame?[['today','🏆 Game'],['log','📋 Log'],['history','📅 History']]:[['today','🏋️ Practice'],['history','📅 History']]).map(function(item){
+          {(isGame?[['today','🏆 Game'],['box','📊 Box'],['log','📋 Log'],['history','📅 History']]:[['today','🏋️ Practice'],['history','📅 History']]).map(function(item){
             var key=item[0],lbl=item[1];
             return (
               <button key={key} onClick={function(){setView(key);}}
@@ -2264,8 +2469,9 @@ function Tracker(props){
         );
       })()}
 
-      {view==='history'&&<HistoryView teamMeta={teamMeta} players={players} sessions={sessions} onDelSession={function(id){var ns=sessions.filter(function(s){return s.id!==id;});setSessions(ns);persist(players,ns);}}/>}
+      {view==='history'&&<HistoryView teamMeta={teamMeta} players={players} sessions={sessions} onDelSession={function(id){var ns=sessions.filter(function(s){return s.id!==id;});setSessions(ns);persist(players,ns);}} onRecalcSessions={function(ns){setSessions(ns);persist(players,ns);}}/>}
       {view==='log'&&isGame&&<PlayLogView log={gs.playLog||[]} players={players} oppName={opponent}/>}
+      {view==='box'&&isGame&&<InGameBoxScore gs={gs} players={players} myScore={myScore} oppScore={oppScore} opponent={opponent} numPeriods={numPeriods}/>}
 
       {scoreEditOpen&&<ScoreEditModal myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} onAdj={function(key,delta){setGs(function(g){var k=key==='my'?'myAdj':'oppAdj';return Object.assign({},g,{[k]:(g[k]||0)+delta});});}} onClose={function(){setScoreEditOpen(false);}}/>}
 
@@ -2619,7 +2825,7 @@ function generateReport(sessions,players,teamMeta){
     '.sb-label{font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
     '.sb-val{font-size:17px;font-weight:600;color:#111;}.sb-pct{font-size:11px;color:#6b7280;}'+
   '</style></head><body>'+
-  '<div class="close-bar"><span>ShotTracker 4.0 — Game Report</span><button class="close-btn" onclick="window.close()">✕ Close</button></div>'+
+  '<div class="close-bar"><span>ShotTracker 4.0 — Game Report</span><div style="display:flex;gap:8px;align-items:center;"><button class="close-btn" onclick="copyBoxScore()" style="background:#f59e0b;color:#fff;border:none;">📋 Copy</button><button class="close-btn" onclick="window.print()" style="background:#16a34a;color:#fff;border:none;">🖨 Print</button><button class="close-btn" onclick="window.close()">✕ Close</button></div></div>'+
   '<div style="height:48px;"></div>'+
   '<div class="page">'+
     '<h1>'+teamMeta.name+' <strong>'+gameScore.my+'</strong> &ndash; '+opp+' <strong>'+gameScore.opp+'</strong></h1>'+
@@ -2679,13 +2885,35 @@ function generateReport(sessions,players,teamMeta){
     '<div class="footer"><div class="brand">ShotTracker 4.0</div><div class="date">Generated '+new Date().toLocaleDateString()+'</div></div>'+
   '</div>'+
   playerPages+
+  '<script>'+
+  'function copyBoxScore(){'+
+    'var lines=[];'+
+    'var title=document.querySelector("h1");'+
+    'var h3=document.querySelector("h3");'+
+    'if(title) lines.push(title.innerText);'+
+    'if(h3) lines.push(h3.innerText);'+
+    'lines.push("");'+
+    'var table=document.querySelector("table");'+
+    'if(table){'+
+      'var rows=table.querySelectorAll("tr");'+
+      'rows.forEach(function(r){'+
+        'var cells=r.querySelectorAll("th,td");'+
+        'var line=Array.from(cells).map(function(c){return c.innerText.trim().padEnd(10);}).join(" ");'+
+        'lines.push(line);'+
+      '});'+
+    '}'+
+    'var text=lines.join("\\n");'+
+    'navigator.clipboard.writeText(text).then(function(){alert("Box score copied to clipboard!");}).catch(function(){'+
+      'var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);alert("Box score copied!");'+
+    '});'+
+  '}'+
+  '<\/script>'+
   '</body></html>';
 
   var w=window.open('','_blank');
   if(w){
     w.document.write(html);
     w.document.close();
-    setTimeout(function(){w.print();},400);
   }
 }
 
