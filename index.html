@@ -680,10 +680,15 @@ function HistoryView(props){
   });
 
   function recalculateFromLog(gameSessions){
-    if(!gameSessions||!gameSessions.length) return;
+    if(!gameSessions||!gameSessions.length){alert('No sessions found.');return;}
     var ref=gameSessions[0];
     var logSess=gameSessions.find(function(s){return s.playLog&&s.playLog.length>0;})||ref;
     var log=logSess.playLog||[];
+    // Diagnostic
+    var homeEntries=log.filter(function(e){return e.team==='home';});
+    var playerNums=players.map(function(p){return p.number;}).join(', ');
+    var logNums=[...new Set(homeEntries.map(function(e){return e.player;}))].join(', ');
+    alert('Sessions: '+gameSessions.length+'\nLog entries: '+log.length+'\nHome entries: '+homeEntries.length+'\nRoster #s: '+playerNums+'\nLog #s: '+logNums);
     if(!log.length){alert('No play log found for this game.');return;}
     var numQ=logSess.numPeriods||ref.numPeriods||4;
     // Build a map of playerNumber -> player
