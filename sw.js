@@ -1,4 +1,4 @@
-const CACHE = 'shottracker-v11';
+const CACHE = 'shottracker-v12';
 const BASE = '/Shot-Tracker4.0/';
 
 self.addEventListener('install', function(e) {

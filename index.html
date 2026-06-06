@@ -743,7 +743,9 @@ function HistoryView(props){
     });
     var ns=newGameSessions.concat(otherSessions);
     onRecalcSessions(ns);
-    alert('Recalculated stats for '+newGameSessions.length+' players from play log.');
+    setViewing(null);
+    setHv('overview');
+    alert('Recalculated stats for '+newGameSessions.length+' players. Go back into the game session to export the updated report.');
   }
 
   var hp=hpData?hpData.p:null;
@@ -817,7 +819,10 @@ function HistoryView(props){
         var sameSess=sessions.filter(function(s){return s.sessionType==='Game'&&s.label===viewing.label&&s.date===viewing.date&&s.opponent===viewing.opponent;});
         return (
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            <button onClick={function(){generateReport(sameSess,players,teamMeta);}}
+            <button onClick={function(){
+              var freshSess=sessions.filter(function(s){return s.sessionType==='Game'&&s.label===viewing.label&&s.date===viewing.date&&s.opponent===viewing.opponent;});
+              generateReport(freshSess,players,teamMeta);
+            }}
               style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>
               📄 Export Game Report
             </button>
