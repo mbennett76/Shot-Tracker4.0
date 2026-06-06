@@ -682,9 +682,10 @@ function HistoryView(props){
   function recalculateFromLog(gameSessions){
     if(!gameSessions||!gameSessions.length) return;
     var ref=gameSessions[0];
-    var log=ref.playLog||[];
+    var logSess=gameSessions.find(function(s){return s.playLog&&s.playLog.length>0;})||ref;
+    var log=logSess.playLog||[];
     if(!log.length){alert('No play log found for this game.');return;}
-    var numQ=ref.numPeriods||4;
+    var numQ=logSess.numPeriods||ref.numPeriods||4;
     // Build a map of playerNumber -> player
     var numToPlayer={};
     players.forEach(function(p){numToPlayer[p.number]=p;});
@@ -820,7 +821,7 @@ function HistoryView(props){
               style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>
               📄 Export Game Report
             </button>
-            {viewing.playLog&&viewing.playLog.length>0&&
+            {sameSess.some(function(s){return s.playLog&&s.playLog.length>0;})&&
               <button onClick={function(){recalculateFromLog(sameSess);}}
                 style={{width:'100%',padding:'13px 0',borderRadius:12,border:'2px solid #d97706',background:'#fffbeb',color:'#92400e',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase'}}>
                 🔄 Recalculate Stats from Play Log
