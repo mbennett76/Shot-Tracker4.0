@@ -684,11 +684,6 @@ function HistoryView(props){
     var ref=gameSessions[0];
     var logSess=gameSessions.find(function(s){return s.playLog&&s.playLog.length>0;})||ref;
     var log=logSess.playLog||[];
-    // Diagnostic
-    var homeEntries=log.filter(function(e){return e.team==='home';});
-    var playerNums=players.map(function(p){return p.number;}).join(', ');
-    var logNums=[...new Set(homeEntries.map(function(e){return e.player;}))].join(', ');
-    alert('Sessions: '+gameSessions.length+'\nLog entries: '+log.length+'\nHome entries: '+homeEntries.length+'\nRoster #s: '+playerNums+'\nLog #s: '+logNums);
     if(!log.length){alert('No play log found for this game.');return;}
     var numQ=logSess.numPeriods||ref.numPeriods||4;
     // Build a map of playerNumber -> player
@@ -3120,7 +3115,7 @@ function TeamSelector(props){
               <React.Fragment>
                 {teams.length>1&&<button onClick={function(){setHistTeam(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← All Teams</button>}
                 <div style={{fontSize:14,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{histTeam.name}</div>
-                <HistoryView teamMeta={histTeam} players={td.players} sessions={td.sessions} onDelSession={function(id){var ns=td.sessions.filter(function(s){return s.id!==id;});lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}}/>
+                <HistoryView teamMeta={histTeam} players={td.players} sessions={td.sessions} onDelSession={function(id){var ns=td.sessions.filter(function(s){return s.id!==id;});lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}} onRecalcSessions={function(ns){lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}}/>
               </React.Fragment>
             );
           })()}
