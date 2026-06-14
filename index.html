@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Shot Tracker">
@@ -255,8 +255,8 @@ function StatTile(props){
   function cl(){clearTimeout(t.current);f.current=true;}
   return (
     <div onPointerDown={dn} onPointerUp={up} onPointerLeave={cl} onPointerCancel={cl}
-      style={{background:color+'18',borderRadius:8,border:'1px solid '+color+'55',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',position:'relative',overflow:'hidden',height:68,flex:1}}>
-      <div style={{fontSize:19,color:color,fontWeight:900,letterSpacing:0,textTransform:'uppercase',textAlign:'center',lineHeight:1,zIndex:2,position:'relative',padding:'0 2px',whiteSpace:'nowrap'}}>{label}</div>
+      style={{background:color+'18',borderRadius:8,border:'1px solid '+color+'55',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',position:'relative',overflow:'hidden',height:52,flex:1}}>
+      <div style={{fontSize:11,color:color,fontWeight:900,letterSpacing:0.5,textTransform:'uppercase',textAlign:'center',lineHeight:1,zIndex:2,position:'relative',padding:'0 2px'}}>{label}</div>
       <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',fontSize:34,fontWeight:900,color:color,opacity:0.15,lineHeight:1,zIndex:1,pointerEvents:'none'}}>{value}</div>
       <div style={{position:'absolute',bottom:3,right:5,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8,lineHeight:1,zIndex:2}}>{value}</div>
     </div>
@@ -585,6 +585,46 @@ function SeasonChart(props){
         :<Court shots={allShots} ftShots={allFT} mode={null} onShot={function(){}} readOnly={true} pCol={pCol} showHeat={showHeat} heatData={hd}/>
       }
       <div><div style={{fontSize:10,letterSpacing:2,color:T.t3,textTransform:'uppercase',marginBottom:7,fontWeight:700}}>Zone Analysis</div><SPanel shots={allShots} ftShots={allFT}/></div>
+      {(function(){
+        var gameSess=sessions.filter(function(s){return s.sessionType==='Game';});
+        var gCount=gameSess.length;
+        if(gCount===0) return null;
+        function avg(n){return Math.round(n/gCount*10)/10;}
+        function fmtAvg(n){return n%1===0?String(n):n.toFixed(1);}
+        var totSt={};
+        GSTATS.forEach(function(g){totSt[g.key]=gameSess.reduce(function(a,s){return a+(s[g.key]||0);},0);});
+        var gSh=gameSess.reduce(function(a,s){return a.concat(s.shots||[]);},[] );
+        var gFT=gameSess.reduce(function(a,s){return a.concat(s.ftShots||[]);},[] );
+        var gPts=calcPts(gSh,gFT);
+        var fg3=gSh.filter(function(s){return s.type==='3-Pointer';});
+        return (
+          <div>
+            <div style={{fontSize:10,letterSpacing:2,color:T.t3,textTransform:'uppercase',marginBottom:7,fontWeight:700}}>Per Game Averages ({gCount} game{gCount!==1?'s':''})</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+              {[
+                {label:'PTS',val:fmtAvg(avg(gPts)),color:'#d97706'},
+                {label:'FG%',val:gSh.length?Math.round(gSh.filter(function(s){return s.make;}).length/gSh.length*100)+'%':'—',color:T.t2},
+                {label:'3PT%',val:fg3.length?Math.round(fg3.filter(function(s){return s.make;}).length/fg3.length*100)+'%':'—',color:'#7c3aed'},
+                {label:'FT%',val:gFT.length?Math.round(gFT.filter(function(s){return s.make;}).length/gFT.length*100)+'%':'—',color:'#d97706'},
+              ].map(function(item){
+                return <div key={item.label} style={{background:T.bg,borderRadius:10,border:'1px solid '+T.border,padding:'8px 12px',textAlign:'center',minWidth:56}}>
+                  <div style={{fontSize:16,fontWeight:900,color:item.color,lineHeight:1}}>{item.val}</div>
+                  <div style={{fontSize:8,color:T.t4,textTransform:'uppercase',letterSpacing:1,marginTop:3}}>{item.label}</div>
+                </div>;
+              })}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+              {GSTATS.map(function(g){
+                var val=fmtAvg(avg(totSt[g.key]));
+                return <div key={g.key} style={{background:g.color+'15',borderRadius:8,padding:'6px 2px',display:'flex',flexDirection:'column',alignItems:'center',gap:2,border:'1px solid '+g.color+'33'}}>
+                  <div style={{fontSize:6,color:g.color,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{g.label}</div>
+                  <div style={{fontSize:14,fontWeight:900,color:T.t1}}>{val}</div>
+                </div>;
+              })}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -636,7 +676,7 @@ function SCard(props){
 
 // ── History View ───────────────────────────────────────────────────────────────
 function HistoryView(props){
-  var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions,onDelSession=props.onDelSession,onRecalcSessions=props.onRecalcSessions;
+  var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions,onDelSession=props.onDelSession;
   var defaultSession=props.defaultSession||null;
   var hvState=useState(defaultSession?'session':'overview');
   var hv=hvState[0],setHv=hvState[1];
@@ -679,75 +719,6 @@ function HistoryView(props){
     return Object.assign({},p,{col:pc(p,i),idx:i,sessions:ps.length,makes:m,shots:sh.length,pct:sh.length?Math.round(m/sh.length*100):null,pts:calcPts(sh,ft),trend:tr,gamePct:gSh2.length?Math.round(gSh2.filter(function(s){return s.make;}).length/gSh2.length*100):null,pracPct:prSh2.length?Math.round(prSh2.filter(function(s){return s.make;}).length/prSh2.length*100):null,avgPM:avgPM},statTotals);
   });
 
-  function recalculateFromLog(gameSessions){
-    if(!gameSessions||!gameSessions.length){alert('No sessions found.');return;}
-    var ref=gameSessions[0];
-    var logSess=gameSessions.find(function(s){return s.playLog&&s.playLog.length>0;})||ref;
-    var log=logSess.playLog||[];
-    if(!log.length){alert('No play log found for this game.');return;}
-    var numQ=logSess.numPeriods||ref.numPeriods||4;
-    // Build a map of playerNumber -> player
-    var numToPlayer={};
-    players.forEach(function(p){numToPlayer[p.number]=p;});
-    // Build per-player stats from log
-    var pStats={};// pid -> {qs:[{shots,ftShots,ast,oReb,dReb,to,foul,stl,blk}]}
-    players.forEach(function(p){
-      pStats[p.id]={qs:[]};
-      for(var i=0;i<numQ;i++) pStats[p.id].qs.push({shots:[],ftShots:[],ast:0,oReb:0,dReb:0,to:0,foul:0,stl:0,blk:0});
-    });
-    var statKeyMap={'AST':'ast','O REB':'oReb','D REB':'dReb','TO':'to','FOUL':'foul','STL':'stl','BLK':'blk',
-      'Assist':'ast','Turnover':'to','Foul':'foul','Steal':'stl','Block':'blk','Off Rebound':'oReb','Def Rebound':'dReb'};
-    log.forEach(function(entry){
-      if(entry.team!=='home') return;
-      var p=numToPlayer[entry.player];
-      if(!p) return;
-      var qi=Math.max(0,Math.min((entry.q||1)-1,numQ-1));
-      var qd=pStats[p.id].qs[qi];
-      var act=entry.action||'';
-      if(act.indexOf('Made')===0||act.indexOf('Missed')===0){
-        var make=act.indexOf('Made')===0;
-        var isFT=act.indexOf('Free Throw')>-1;
-        var is3=act.indexOf('3-Pointer')>-1;
-        var shotObj={id:entry.id||Date.now(),make:make,type:isFT?'Free Throw':(is3?'3-Pointer':'2-Pointer'),ts:entry.ts};
-        if(isFT) qd.ftShots.push(shotObj);
-        else qd.shots.push(shotObj);
-      } else {
-        var sKey=statKeyMap[act];
-        if(sKey) qd[sKey]=(qd[sKey]||0)+1;
-      }
-    });
-    // Now rebuild sessions — keep existing non-game sessions, replace game sessions
-    var otherSessions=sessions.filter(function(s){return !(s.sessionType==='Game'&&s.label===ref.label&&s.date===ref.date&&s.opponent===ref.opponent);});
-    var newGameSessions=[];
-    players.forEach(function(p){
-      var pd=pStats[p.id];
-      if(!hasDraftQ(pd.qs)) return;// skip players with zero activity
-      var allSh=pd.qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
-      var allFT=pd.qs.reduce(function(a,q){return a.concat(q.ftShots||[]);},[] );
-      var totStats={};
-      GSTATS.forEach(function(g){totStats[g.key]=pd.qs.reduce(function(a,q){return a+(q[g.key]||0);},0);});
-      // Find existing session for this player to preserve plusMinus, gameScore etc
-      var existing=gameSessions.find(function(s){return s.playerId===p.id;});
-      var rec=Object.assign({},existing||{},{
-        id:(existing&&existing.id)||(Date.now().toString()+'-'+p.id),
-        date:ref.date,label:ref.label,sessionType:'Game',opponent:ref.opponent,
-        numPeriods:numQ,playerId:p.id,playerNumber:p.number,
-        shots:allSh,ftShots:allFT,
-        gameScore:ref.gameScore,
-        opponentData:ref.opponentData,
-        playLog:log,
-        quarterData:pd.qs,
-        recalcAt:new Date().toISOString()
-      },totStats);
-      newGameSessions.push(rec);
-    });
-    var ns=newGameSessions.concat(otherSessions);
-    onRecalcSessions(ns);
-    setViewing(null);
-    setHv('overview');
-    alert('Recalculated stats for '+newGameSessions.length+' players. Go back into the game session to export the updated report.');
-  }
-
   var hp=hpData?hpData.p:null;
   var hpI=hpData?hpData.i:0;
   var hpC=hp?pc(hp,hpI):T.accent;
@@ -774,6 +745,57 @@ function HistoryView(props){
   var vP=viewing?players.find(function(p){return p.id===viewing.playerId;}):null;
   var vI=viewing?players.findIndex(function(p){return p.id===viewing.playerId;}):0;
   var vC=pc(vP,vI);
+
+  if(hv==='teamTotals'){
+    var gameSessions=sessions.filter(function(s){return s.sessionType==='Game';});
+    var uniqueGames=(function(){
+      var seen={};
+      gameSessions.forEach(function(s){var k=s.date+'|'+(s.opponent||'')+'|'+(s.label||'');seen[k]=true;});
+      return Object.keys(seen).length;
+    })();
+    var gTotals={};
+    GSTATS.forEach(function(g){gTotals[g.key]=gameSessions.reduce(function(a,s){return a+(s[g.key]||0);},0);});
+    var gShots=gameSessions.reduce(function(a,s){return a.concat(s.shots||[]);},[] );
+    var gFT=gameSessions.reduce(function(a,s){return a.concat(s.ftShots||[]);},[] );
+    var gMakes=gShots.filter(function(s){return s.make;}).length;
+    var gFG3=gShots.filter(function(s){return s.type==='3-Pointer';});
+    var gFG3m=gFG3.filter(function(s){return s.make;}).length;
+    var gFTm=gFT.filter(function(s){return s.make;}).length;
+    var gPts=calcPts(gShots,gFT);
+    var gDiv=uniqueGames||1;
+    function avg(n){return uniqueGames>0?(Math.round(n/gDiv*10)/10):0;}
+    function fgAvg(m,a){return uniqueGames>0?Math.round(m/gDiv)+'-'+Math.round(a/gDiv):'0-0';}
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:12,padding:'12px 0'}}>
+        <button onClick={function(){setHv('overview');}} style={{background:'none',border:'none',color:T.green,cursor:'pointer',fontSize:11,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← Season Overview</button>
+        <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'14px 16px'}}>
+          <div style={{fontSize:9,color:T.green,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Team Season — Games Only</div>
+          <div style={{fontSize:11,color:T.t4,marginBottom:12}}>{uniqueGames} game{uniqueGames!==1?'s':''} · {gameSessions.length} player sessions</div>
+          {[
+            {label:'Season Totals',pts:gPts,fga:gShots.length,fgm:gMakes,fg3a:gFG3.length,fg3m:gFG3m,fta:gFT.length,ftm:gFTm,stats:gTotals},
+            {label:'Per Game Avg',pts:avg(gPts),fga:avg(gShots.length),fgm:avg(gMakes),fg3a:avg(gFG3.length),fg3m:avg(gFG3m),fta:avg(gFT.length),ftm:avg(gFTm),stats:Object.fromEntries(GSTATS.map(function(g){return [g.key,avg(gTotals[g.key])];}))}
+          ].map(function(row,ri){
+            var isAvg=ri===1;
+            return (
+              <div key={ri} style={{background:isAvg?T.bg:T.card,borderRadius:10,border:'1px solid '+T.border,padding:'12px 14px',marginBottom:8}}>
+                <div style={{fontSize:9,color:isAvg?T.accent:T.t1,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>{row.label}</div>
+                <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:10}}>
+                  <div style={{textAlign:'center',minWidth:44}}><div style={{fontSize:20,fontWeight:900,color:'#d97706'}}>{row.pts}</div><div style={{fontSize:8,color:T.t4,textTransform:'uppercase',letterSpacing:1}}>PTS</div></div>
+                  <div style={{textAlign:'center',minWidth:44}}><div style={{fontSize:16,fontWeight:700,color:gShots.length?(gMakes/gShots.length>=0.5?T.green:T.red):T.t4}}>{gShots.length?Math.round(gMakes/gShots.length*100)+'%':'—'}</div><div style={{fontSize:8,color:T.t4,textTransform:'uppercase',letterSpacing:1}}>FG%</div></div>
+                  <div style={{textAlign:'center',minWidth:44}}><div style={{fontSize:14,fontWeight:700,color:T.t2}}>{isAvg?fgAvg(gMakes,gShots.length):gMakes+'-'+gShots.length}</div><div style={{fontSize:8,color:T.t4,textTransform:'uppercase',letterSpacing:1}}>FG</div></div>
+                  <div style={{textAlign:'center',minWidth:44}}><div style={{fontSize:14,fontWeight:700,color:'#7c3aed'}}>{isAvg?fgAvg(gFG3m,gFG3.length):gFG3m+'-'+gFG3.length}</div><div style={{fontSize:8,color:T.t4,textTransform:'uppercase',letterSpacing:1}}>3PT</div></div>
+                  <div style={{textAlign:'center',minWidth:44}}><div style={{fontSize:14,fontWeight:700,color:'#d97706'}}>{isAvg?fgAvg(gFTm,gFT.length):gFTm+'-'+gFT.length}</div><div style={{fontSize:8,color:T.t4,textTransform:'uppercase',letterSpacing:1}}>FT</div></div>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4}}>
+                  {GSTATS.map(function(g){return <div key={g.key} style={{background:g.color+'15',borderRadius:8,padding:'5px 2px',display:'flex',flexDirection:'column',alignItems:'center',gap:1,border:'1px solid '+g.color+'33'}}><div style={{fontSize:6,color:g.color,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{g.label}</div><div style={{fontSize:14,fontWeight:900,color:T.t1}}>{row.stats[g.key]}</div></div>;})}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   if(hv==='chart'&&hp) return <SeasonChart player={hp} sessions={hpS} pCol={hpC} onBack={function(){setHv('player');}}/>;
 
@@ -817,23 +839,10 @@ function HistoryView(props){
       })()}
       {viewing.sessionType==='Game'&&(function(){
         var sameSess=sessions.filter(function(s){return s.sessionType==='Game'&&s.label===viewing.label&&s.date===viewing.date&&s.opponent===viewing.opponent;});
-        return (
-          <div style={{display:'flex',flexDirection:'column',gap:8}}>
-            <button onClick={function(){
-              var freshSess=sessions.filter(function(s){return s.sessionType==='Game'&&s.label===viewing.label&&s.date===viewing.date&&s.opponent===viewing.opponent;});
-              generateReport(freshSess,players,teamMeta);
-            }}
-              style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>
-              📄 Export Game Report
-            </button>
-            {sameSess.some(function(s){return s.playLog&&s.playLog.length>0;})&&
-              <button onClick={function(){recalculateFromLog(sameSess);}}
-                style={{width:'100%',padding:'13px 0',borderRadius:12,border:'2px solid #d97706',background:'#fffbeb',color:'#92400e',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase'}}>
-                🔄 Recalculate Stats from Play Log
-              </button>
-            }
-          </div>
-        );
+        return <button onClick={function(){generateReport(sameSess,players,teamMeta);}}
+          style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>
+          📄 Export Game Report
+        </button>;
       })()}
       <div><div style={{fontSize:10,letterSpacing:2,color:T.t3,textTransform:'uppercase',marginBottom:7,fontWeight:700}}>Shot Analysis</div><SPanel shots={viewing.shots||[]} ftShots={viewing.ftShots||[]}/></div>
       {viewing.playLog&&viewing.playLog.length>0&&
@@ -887,8 +896,11 @@ function HistoryView(props){
       {sessions.length===0&&<div style={{textAlign:'center',padding:'60px 20px',background:T.card,borderRadius:12,border:'1px solid '+T.border}}><div style={{fontSize:36,marginBottom:12}}>📋</div><div style={{fontSize:13,color:T.t4,textTransform:'uppercase',letterSpacing:2}}>No sessions saved yet</div></div>}
       {sessions.length>0&&(
         <React.Fragment>
-          <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'16px 18px'}}>
-            <div style={{fontSize:9,color:T.green,fontWeight:700,letterSpacing:3,textTransform:'uppercase',marginBottom:10}}>Team Season Totals</div>
+          <div onClick={function(){setHv('teamTotals');}} style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'16px 18px',cursor:'pointer'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+              <div style={{fontSize:9,color:T.green,fontWeight:700,letterSpacing:3,textTransform:'uppercase'}}>Team Season Totals</div>
+              <div style={{fontSize:11,color:T.accent,fontWeight:700,letterSpacing:1}}>Details ›</div>
+            </div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:12}}>
               <div>
                 <div style={{fontSize:22,fontWeight:900,color:T.t1}}>{aS.length} FG attempts</div>
@@ -1306,11 +1318,10 @@ function SessionTypeScreen(props){
   var editHeadState=useState(false);var editHead=editHeadState[0],setEditHead=editHeadState[1];
   var editAstIdxState=useState(null);var editAstIdx=editAstIdxState[0],setEditAstIdx=editAstIdxState[1];
   var historyViewState=useState(null);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
-  var showPastState=useState(true);var showPast=showPastState[0],setShowPast=showPastState[1];
 
-  var todayDateStr=todayStr();
-  var upcoming=schedule.filter(function(e){return e.date>=todayDateStr;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
-  var past=schedule.filter(function(e){return e.date<todayDateStr;}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  var now=new Date();now.setHours(0,0,0,0);
+  var upcoming=schedule.filter(function(e){return new Date(e.date+'T12:00:00')>=now;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
+  var past=schedule.filter(function(e){return new Date(e.date+'T12:00:00')<now;}).sort(function(a,b){return b.date.localeCompare(a.date);});
 
   function saveSchedule(newSched){onUpdateData({schedule:newSched});}
   function saveCoaches(newCoaches){onUpdateData({coaches:newCoaches});}
@@ -1397,13 +1408,10 @@ function SessionTypeScreen(props){
             </div>
           </div>}
           {past.length>0&&<div>
-            <button onClick={function(){setShowPast(function(s){return !s;});}} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:T.card,border:'1px solid '+T.border,borderRadius:10,padding:'10px 14px',cursor:'pointer',marginBottom:showPast?8:0}}>
-              <div style={{fontSize:9,color:T.t3,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Past Events ({past.length})</div>
-              <div style={{fontSize:14,color:T.t4,fontWeight:700}}>{showPast?'▴':'▾'}</div>
-            </button>
-            {showPast&&<div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',margin:'8px 0 8px'}}>Past</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}
-            </div>}
+            </div>
           </div>}
         </div>
       )}
@@ -1420,11 +1428,8 @@ function SessionTypeScreen(props){
             <div style={{display:'flex',flexDirection:'column',gap:8}}>{upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}</div>
           </div>}
           {past.length>0&&<div>
-            <button onClick={function(){setShowPast(function(s){return !s;});}} style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'space-between',background:T.card,border:'1px solid '+T.border,borderRadius:10,padding:'10px 14px',cursor:'pointer',marginBottom:showPast?8:0}}>
-              <div style={{fontSize:9,color:T.t3,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Past Events ({past.length})</div>
-              <div style={{fontSize:14,color:T.t4,fontWeight:700}}>{showPast?'▴':'▾'}</div>
-            </button>
-            {showPast&&<div style={{display:'flex',flexDirection:'column',gap:8}}>{past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}</div>}
+            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Past</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>{past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}</div>
           </div>}
         </div>
       )}
@@ -1528,170 +1533,6 @@ function SessionTypeScreen(props){
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
 
-// ── In-Game Box Score ──────────────────────────────────────────────────────────
-function InGameBoxScore(props){
-  var gs=props.gs,players=props.players,myScore=props.myScore,oppScore=props.oppScore,opponent=props.opponent,numPeriods=props.numPeriods;
-  var C={padding:'6px 5px',textAlign:'center',fontSize:11,borderBottom:'1px solid '+T.border,color:T.t2,whiteSpace:'nowrap'};
-  var H={padding:'5px 5px',textAlign:'center',fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',borderBottom:'2px solid '+T.border,whiteSpace:'nowrap'};
-
-  // Build rows for each player
-  var rows=[];
-  var totals={pts:0,fgm:0,fga:0,fg3m:0,fg3a:0,ftm:0,fta:0,reb:0,oReb:0,dReb:0,ast:0,stl:0,blk:0,to:0,pf:0};
-
-  players.forEach(function(p,i){
-    var pd=gs.pdata[p.id];
-    if(!pd) return;
-    var qs=pd.qs||[];
-    var allSh=qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
-    var allFT=qs.reduce(function(a,q){return a.concat(q.ftShots||[]);},[] );
-    var fg3sh=allSh.filter(function(s){return s.type==='3-Pointer';});
-    var fg2sh=allSh.filter(function(s){return s.type!=='3-Pointer';});
-    var fgm=allSh.filter(function(s){return s.make;}).length;
-    var fg3m=fg3sh.filter(function(s){return s.make;}).length;
-    var ftm=allFT.filter(function(s){return s.make;}).length;
-    var pts=fg2sh.filter(function(s){return s.make;}).length*2+fg3m*3+ftm;
-    var oReb=qs.reduce(function(a,q){return a+(q.oReb||0);},0);
-    var dReb=qs.reduce(function(a,q){return a+(q.dReb||0);},0);
-    var ast=qs.reduce(function(a,q){return a+(q.ast||0);},0);
-    var stl=qs.reduce(function(a,q){return a+(q.stl||0);},0);
-    var blk=qs.reduce(function(a,q){return a+(q.blk||0);},0);
-    var to=qs.reduce(function(a,q){return a+(q.to||0);},0);
-    var pf=qs.reduce(function(a,q){return a+(q.foul||0);},0);
-    var isOn=pd.active!==false;
-    var col=pc(p,i);
-    totals.pts+=pts;totals.fgm+=fgm;totals.fga+=allSh.length;
-    totals.fg3m+=fg3m;totals.fg3a+=fg3sh.length;
-    totals.ftm+=ftm;totals.fta+=allFT.length;
-    totals.oReb+=oReb;totals.dReb+=dReb;totals.reb+=(oReb+dReb);
-    totals.ast+=ast;totals.stl+=stl;totals.blk+=blk;totals.to+=to;totals.pf+=pf;
-    rows.push({p:p,col:col,isOn:isOn,pts:pts,fgm:fgm,fga:allSh.length,fg3m:fg3m,fg3a:fg3sh.length,ftm:ftm,fta:allFT.length,reb:oReb+dReb,ast:ast,stl:stl,blk:blk,to:to,pf:pf});
-  });
-
-  var fgPct=totals.fga>0?Math.round(totals.fgm/totals.fga*100)+'%':'—';
-
-  return (
-    <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
-      {/* Score summary */}
-      <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{textAlign:'center',flex:1}}>
-          <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:2}}>Your Team</div>
-          <div style={{fontSize:36,fontWeight:900,color:T.accent,lineHeight:1}}>{myScore}</div>
-        </div>
-        <div style={{fontSize:13,color:T.t4,fontWeight:700,padding:'0 12px'}}>vs</div>
-        <div style={{textAlign:'center',flex:1}}>
-          <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:2}}>{opponent||'Opponent'}</div>
-          <div style={{fontSize:36,fontWeight:900,color:T.t2,lineHeight:1}}>{oppScore}</div>
-        </div>
-      </div>
-
-      {/* Box score table */}
-      <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
-        <div style={{padding:'8px 14px',background:T.bg,borderBottom:'1px solid '+T.border,fontSize:9,color:T.t2,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>
-          Box Score — Full Game
-        </div>
-        <div style={{overflowX:'auto',WebkitOverflowScrolling:'touch'}}>
-          <table style={{width:'100%',minWidth:520,borderCollapse:'collapse'}}>
-            <thead>
-              <tr style={{background:T.bg}}>
-                <th style={{...H,textAlign:'left',paddingLeft:10,minWidth:60}}>PLAYER</th>
-                <th style={H}>PTS</th>
-                <th style={H}>FG</th>
-                <th style={H}>FG%</th>
-                <th style={H}>3PT</th>
-                <th style={H}>FT</th>
-                <th style={H}>REB</th>
-                <th style={H}>AST</th>
-                <th style={H}>STL</th>
-                <th style={H}>BLK</th>
-                <th style={H}>TO</th>
-                <th style={H}>PF</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(function(r,i){
-                var fgP=r.fga>0?Math.round(r.fgm/r.fga*100)+'%':'—';
-                return (
-                  <tr key={r.p.id} style={{background:i%2===0?'transparent':T.bg+'66',opacity:r.isOn?1:0.55}}>
-                    <td style={{...C,textAlign:'left',paddingLeft:10}}>
-                      <div style={{display:'flex',alignItems:'center',gap:5}}>
-                        <div style={{width:6,height:6,borderRadius:'50%',background:r.col,flexShrink:0}}/>
-                        <span style={{fontWeight:700,color:r.col,fontSize:12}}>#{r.p.number}</span>
-                        {!r.isOn&&<span style={{fontSize:8,color:T.t4,fontWeight:600}}>BN</span>}
-                      </div>
-                    </td>
-                    <td style={{...C,fontWeight:900,color:T.t1,fontSize:13}}>{r.pts}</td>
-                    <td style={C}>{r.fgm+'-'+r.fga}</td>
-                    <td style={{...C,color:r.fga>0?(r.fgm/r.fga>=0.5?T.green:T.red):T.t4,fontWeight:700}}>{fgP}</td>
-                    <td style={C}>{r.fg3m+'-'+r.fg3a}</td>
-                    <td style={C}>{r.ftm+'-'+r.fta}</td>
-                    <td style={C}>{r.reb}</td>
-                    <td style={C}>{r.ast}</td>
-                    <td style={C}>{r.stl}</td>
-                    <td style={C}>{r.blk}</td>
-                    <td style={C}>{r.to}</td>
-                    <td style={C}>{r.pf}</td>
-                  </tr>
-                );
-              })}
-              {/* Totals row */}
-              <tr style={{background:T.accent+'18',borderTop:'2px solid '+T.accent+'44'}}>
-                <td style={{...C,textAlign:'left',paddingLeft:10,fontWeight:900,color:T.accent,fontSize:10,letterSpacing:1}}>TEAM</td>
-                <td style={{...C,fontWeight:900,color:T.t1,fontSize:13}}>{totals.pts}</td>
-                <td style={C}>{totals.fgm+'-'+totals.fga}</td>
-                <td style={{...C,fontWeight:700,color:totals.fga>0?(totals.fgm/totals.fga>=0.5?T.green:T.red):T.t4}}>{fgPct}</td>
-                <td style={C}>{totals.fg3m+'-'+totals.fg3a}</td>
-                <td style={C}>{totals.ftm+'-'+totals.fta}</td>
-                <td style={C}>{totals.reb}</td>
-                <td style={C}>{totals.ast}</td>
-                <td style={C}>{totals.stl}</td>
-                <td style={C}>{totals.blk}</td>
-                <td style={C}>{totals.to}</td>
-                <td style={C}>{totals.pf}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div style={{padding:'6px 14px',fontSize:9,color:T.t4,letterSpacing:1}}>BN = bench · scroll right for all stats</div>
-      </div>
-    </div>
-  );
-}
-
-// ── Assist Popup ───────────────────────────────────────────────────────────────
-function AssistPopup(props){
-  var shooterId=props.shooterId,onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
-  var assistCandidates=onFloorPlayers.filter(function(p){return p.id!==shooterId;});
-  return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
-      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
-        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
-        <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist</div>
-        <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Who assisted the basket?</div>
-        {assistCandidates.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No other players on floor.</div>}
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
-          {assistCandidates.map(function(p){
-            var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
-            var col=pc(p,pIdx);
-            return (
-              <button key={p.id} onClick={function(){onAssist(p.id);}}
-                style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',
-                  color:col,fontSize:26,fontWeight:900,cursor:'pointer',
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-                {p.number}
-              </button>
-            );
-          })}
-        </div>
-        <button onClick={function(){onAssist(null);}}
-          style={{width:'100%',padding:'13px',borderRadius:12,border:'1px solid '+T.border,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase'}}>
-          No Assist
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
   var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound;
@@ -1735,16 +1576,13 @@ function ReboundPopup(props){
 // ── Substitution Popup ─────────────────────────────────────────────────────────
 function SubPopup(props){
   var players=props.players,gs=props.gs,isGame=props.isGame,onClose=props.onClose,onToggle=props.onToggle;
-  var chipTimer=useRef(null),chipFired=useRef(false);
-  function lpDown(p){return function(e){e.preventDefault();chipFired.current=false;chipTimer.current=setTimeout(function(){chipFired.current=true;onToggle(p);vib(60);},700);};}
-  function lpUp(){clearTimeout(chipTimer.current);}
   var sorted=players.slice().sort(function(a,b){return parseNum(a.number)-parseNum(b.number);});
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',zIndex:998,display:'flex',flexDirection:'column'}}>
       <div style={{background:T.card,flex:1,display:'flex',flexDirection:'column',maxHeight:'100vh'}}>
         <div style={{padding:'20px 20px 14px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
           <div style={{fontSize:18,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>Substitutions</div>
-          <div style={{fontSize:10,color:T.t4,letterSpacing:1}}>Long-press to toggle on/off floor</div>
+          <div style={{fontSize:10,color:T.t4,letterSpacing:1}}>Tap to toggle on/off floor</div>
         </div>
         <div style={{flex:1,overflowY:'auto',padding:'20px'}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
@@ -1753,7 +1591,7 @@ function SubPopup(props){
               var col=pc(p,pIdx);
               var active=isGame?(gs.pdata[p.id]?gs.pdata[p.id].active!==false:false):(p.active!==false);
               return (
-                <div key={p.id} onPointerDown={lpDown(p)} onPointerUp={lpUp} onPointerLeave={lpUp} onPointerCancel={lpUp}
+                <div key={p.id} onClick={function(){onToggle(p);vib(40);}}
                   style={{height:80,borderRadius:14,border:active?'2.5px solid '+col:'1.5px solid '+T.border,
                     background:active?col+'22':T.bg,color:active?col:T.t4,
                     fontSize:32,fontWeight:900,display:'flex',flexDirection:'column',alignItems:'center',
@@ -1867,8 +1705,6 @@ function Tracker(props){
   var awaitCourt=awaitCourtState[0],setAwaitCourt=awaitCourtState[1];
   var awaitReboundState=useState(null);
   var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
-  var awaitAssistState=useState(null);
-  var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -1989,7 +1825,6 @@ function Tracker(props){
     vib(50);setAwaitCourt(null);setMode(null);
     clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
     if(!make&&isGame) setAwaitRebound({shooter:'home'});
-    if(make&&isGame&&!isFT) setAwaitAssist({shooterId:targetPid});
   },[awaitCourt,isGame,pDrafts,gs,players]);
 
   function recordFT(make,targetPid){
@@ -2129,23 +1964,6 @@ function Tracker(props){
     }
   }
 
-  function handleAssist(playerId){
-    setAwaitAssist(null);
-    if(!playerId) return;
-    var targetPlayer=players.find(function(p){return p.id===playerId;});
-    var entry={id:Date.now(),q:gs.q,team:'home',player:targetPlayer?targetPlayer.number:'?',action:'AST',pts:0,ts:new Date().toISOString()};
-    setGs(function(g){
-      if(!g.pdata[playerId]) return g;
-      var newQs=g.pdata[playerId].qs.map(function(q,i){return i===g.q-1?Object.assign({},q,{ast:Math.max(0,(q.ast||0)+1)}):q;});
-      var newPdata=Object.assign({},g.pdata);
-      newPdata[playerId]=Object.assign({},g.pdata[playerId],{qs:newQs});
-      return Object.assign({},g,{pdata:newPdata,playLog:(g.playLog||[]).concat([entry])});
-    });
-    setNotice({label:'AST · #'+(targetPlayer?targetPlayer.number:'?'),make:true});
-    clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2000);
-    vib(40);
-  }
-
   function handleUndo(){
     if(isGame){
       setGs(function(g){
@@ -2183,7 +2001,7 @@ function Tracker(props){
       var oppTotal=(gs.oppQs||[]).reduce(function(a,q){return {fg2m:a.fg2m+(q.fg2m||0),fg2a:a.fg2a+(q.fg2a||0),fg3m:a.fg3m+(q.fg3m||0),fg3a:a.fg3a+(q.fg3a||0),ftm:a.ftm+(q.ftm||0),fta:a.fta+(q.fta||0),oReb:a.oReb+(q.oReb||0),dReb:a.dReb+(q.dReb||0),to:a.to+(q.to||0),foul:a.foul+(q.foul||0)};},EMPTY_OPP());
       var oppData={quarters:(gs.oppQs||[]).map(function(q){return Object.assign({},q);}),total:oppTotal};
       var savedLog=gs.playLog||[];
-      players.filter(function(p){return gs.pdata[p.id];}).forEach(function(p){
+      players.filter(function(p){return gs.pdata[p.id]&&gs.pdata[p.id].active!==false;}).forEach(function(p){
         var pd=gs.pdata[p.id];
         if(!pd||!hasDraftQ(pd.qs)) return;
         var allSh=pd.qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
@@ -2266,8 +2084,8 @@ function Tracker(props){
     },0);
   }
 
-  var STAT_ROW1=[GSTATS[6],GSTATS[2],GSTATS[5],GSTATS[4]]; // foul,to,stl,blk
-  var STAT_ROW2=[GSTATS[3],GSTATS[0],GSTATS[1]]; // ast,oReb,dReb
+  var STAT_ROW1=[GSTATS[0],GSTATS[1],GSTATS[2],GSTATS[3]]; // oReb,dReb,to,ast
+  var STAT_ROW2=[GSTATS[4],GSTATS[6],GSTATS[5]]; // blk,foul,stl
 
   return (
     <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 12px 40px',maxWidth:520,margin:'0 auto',width:'100%'}}>
@@ -2282,7 +2100,7 @@ function Tracker(props){
       {/* Tabs */}
       <div style={{width:'100%',display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
         <div style={{display:'flex',background:T.card,borderRadius:12,border:'1px solid '+T.border,overflow:'hidden',flex:1,boxShadow:T.shadow}}>
-          {(isGame?[['today','🏆 Game'],['box','📊 Box'],['log','📋 Log'],['history','📅 History']]:[['today','🏋️ Practice'],['history','📅 History']]).map(function(item){
+          {(isGame?[['today','🏆 Game'],['log','📋 Log'],['history','📅 History']]:[['today','🏋️ Practice'],['history','📅 History']]).map(function(item){
             var key=item[0],lbl=item[1];
             return (
               <button key={key} onClick={function(){setView(key);}}
@@ -2312,15 +2130,25 @@ function Tracker(props){
                   var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
                   var col=pc(p,pIdx);
                   var isA=activePid===p.id;
+                  var fouls=isGame&&gs.pdata[p.id]?gs.pdata[p.id].qs.reduce(function(t,q){return t+(q.foul||0);},0):0;
+                  var dotPos=[{top:3,left:3},{top:3,right:3},{bottom:3,left:3},{bottom:3,right:3}];
                   return (
                     <div key={p.id} onClick={function(){if(activePid===p.id){setEditPid(p.id);setEditNum(p.number);setEditName(p.name||"");setConfDelP(false);}else{setActivePid(p.id);}}}
-                      style={{width:56,height:56,borderRadius:12,
+                      style={{width:56,height:56,borderRadius:12,position:'relative',
                         border:isA?'2.5px solid '+col:'1.5px solid '+col+'66',
                         background:isA?col+'28':col+'12',color:isA?col:col+'cc',
                         fontSize:24,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
                         cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                         transition:'all 0.15s'}}>
                       {p.number}
+                      {isGame&&dotPos.slice(0,Math.min(fouls,4)).map(function(pos,i){
+                        return <div key={i} style={Object.assign({},{position:'absolute',width:9,height:9,borderRadius:'50%',background:'#111',boxShadow:'0 0 0 1.5px rgba(255,255,255,0.5)'},pos)}/>;
+                      })}
+                      {isGame&&fouls>=5&&(
+                        <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',borderRadius:12,pointerEvents:'none'}} viewBox="0 0 56 56">
+                          <line x1="5" y1="5" x2="51" y2="51" stroke="#111" strokeWidth="3.5" strokeLinecap="round"/>
+                        </svg>
+                      )}
                     </div>
                   );
                 })}
@@ -2417,13 +2245,12 @@ function Tracker(props){
                     var totVal=getStatTotal(s.key);
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
-                        style={{flex:1,height:66,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:18,fontWeight:900,
-                          letterSpacing:0,cursor:'pointer',textTransform:'uppercase',
-                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
-                          display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
-                        <div style={{textAlign:'center',whiteSpace:'nowrap'}}>{s.label}</div>
-                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:13,fontWeight:900,color:T.t1,opacity:0.75,lineHeight:1}}>{totVal}</div>}
+                        style={{flex:1,height:58,borderRadius:10,border:'1px solid '+s.color+'55',
+                          background:s.color+'18',color:s.color,fontSize:11,fontWeight:900,
+                          letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
+                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                        <div>{s.label}</div>
+                        {totVal>0&&<div style={{position:'absolute',bottom:4,right:6,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -2433,13 +2260,12 @@ function Tracker(props){
                     var totVal=getStatTotal(s.key);
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
-                        style={{flex:1,height:66,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:18,fontWeight:900,
-                          letterSpacing:0,cursor:'pointer',textTransform:'uppercase',
-                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
-                          display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}}>
-                        <div style={{textAlign:'center',whiteSpace:'nowrap'}}>{s.label}</div>
-                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:13,fontWeight:900,color:T.t1,opacity:0.75,lineHeight:1}}>{totVal}</div>}
+                        style={{flex:1,height:58,borderRadius:10,border:'1px solid '+s.color+'55',
+                          background:s.color+'18',color:s.color,fontSize:11,fontWeight:900,
+                          letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
+                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                        <div>{s.label}</div>
+                        {totVal>0&&<div style={{position:'absolute',bottom:4,right:6,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -2475,9 +2301,8 @@ function Tracker(props){
         );
       })()}
 
-      {view==='history'&&<HistoryView teamMeta={teamMeta} players={players} sessions={sessions} onDelSession={function(id){var ns=sessions.filter(function(s){return s.id!==id;});setSessions(ns);persist(players,ns);}} onRecalcSessions={function(ns){setSessions(ns);persist(players,ns);}}/>}
+      {view==='history'&&<HistoryView teamMeta={teamMeta} players={players} sessions={sessions} onDelSession={function(id){var ns=sessions.filter(function(s){return s.id!==id;});setSessions(ns);persist(players,ns);}}/>}
       {view==='log'&&isGame&&<PlayLogView log={gs.playLog||[]} players={players} oppName={opponent}/>}
-      {view==='box'&&isGame&&<InGameBoxScore gs={gs} players={players} myScore={myScore} oppScore={oppScore} opponent={opponent} numPeriods={numPeriods}/>}
 
       {scoreEditOpen&&<ScoreEditModal myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} onAdj={function(key,delta){setGs(function(g){var k=key==='my'?'myAdj':'oppAdj';return Object.assign({},g,{[k]:(g[k]||0)+delta});});}} onClose={function(){setScoreEditOpen(false);}}/>}
 
@@ -2502,14 +2327,6 @@ function Tracker(props){
         onFloorPlayers={sortedActive}
         players={players}
         onRebound={handleRebound}
-      />}
-
-      {/* Assist popup */}
-      {awaitAssist&&isGame&&<AssistPopup
-        shooterId={awaitAssist.shooterId}
-        onFloorPlayers={sortedActive}
-        players={players}
-        onAssist={handleAssist}
       />}
 
       {/* Substitution popup */}
@@ -2609,7 +2426,7 @@ function generateReport(sessions,players,teamMeta){
   var teamTotals={pts:0,pf:0,fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0,oReb:0,dReb:0,ast:0,stl:0,blk:0};
   players.forEach(function(p){
     var sess=gameSess.find(function(s){return s.playerId===p.id;});
-    if(!sess||!(hasDraftQ(sess.quarterData||[])||(sess.shots||[]).length>0||(sess.ftShots||[]).length>0)) return;
+    if(!sess) return;
     var sh=sess.shots||[];
     var ft=sess.ftShots||[];
     var fg2sh=sh.filter(function(s){return s.type!=='3-Pointer';});
@@ -2621,7 +2438,6 @@ function generateReport(sessions,players,teamMeta){
     var row={
       num:p.number,name:p.name||'',
       pts:pts,pf:sess.foul||0,
-      fgm:fg2m+fg3m,fga:sh.length,
       fgStr:fgStr(sh),fg2Str:fg2m+'-'+fg2sh.length,fg3Str:fg3m+'-'+fg3sh.length,ftStr:ftStr(ft),
       to:sess.to||0,oReb:sess.oReb||0,dReb:sess.dReb||0,reb:(sess.oReb||0)+(sess.dReb||0),
       ast:sess.ast||0,stl:sess.stl||0,blk:sess.blk||0,pm:sess.plusMinus!=null?sess.plusMinus:0
@@ -2647,13 +2463,6 @@ function generateReport(sessions,players,teamMeta){
     var qd=(oppData.quarters||[])[idx]||EMPTY_OPP();
     return oppQPts(qd);
   }
-  var myQTotals=pN.map(function(n,i){return periodScore(gameSess,i);});
-  var oppQTotals=pN.map(function(n,i){return oppPeriodScore(i);});
-  var myQSum=myQTotals.reduce(function(a,b){return a+b;},0);
-  var oppQSum=oppQTotals.reduce(function(a,b){return a+b;},0);
-  // Use saved final score for total (includes any manual adjustments), fall back to sum
-  var myFinalScore=gameScore.my;
-  var oppFinalScore=gameScore.opp;
 
   // Shot chart SVG for a player
   function shotChartSVG(sess){
@@ -2690,7 +2499,7 @@ function generateReport(sessions,players,teamMeta){
       '<path d="M '+kL+' '+ftYs+' A '+ftR+' '+ftR+' 0 0 0 '+kR+' '+ftYs+'" stroke="white" stroke-width="1" fill="none"/>'+
       '<path d="M '+kL+' '+ftYs+' A '+ftR+' '+ftR+' 0 0 1 '+kR+' '+ftYs+'" stroke="white" stroke-width="1" fill="none" stroke-dasharray="4 3"/>'+
       '<circle cx="'+bxS+'" cy="'+byS+'" r="'+Math.round(11*scale)+'" fill="none" stroke="white" stroke-width="1"/>'+
-      '<path d="M '+corL+' '+corArcY+' A '+threeR+' '+threeR+' 0 0 1 '+corR+' '+corArcY+'" stroke="white" stroke-width="1" fill="none"/>'+
+      '<path d="M '+corL+' '+basY+' A '+threeR+' '+threeR+' 0 0 1 '+corR+' '+basY+'" stroke="white" stroke-width="1" fill="none"/>'+
       '<line x1="'+corL+'" y1="'+basY+'" x2="'+corL+'" y2="'+corArcY+'" stroke="white" stroke-width="1"/>'+
       '<line x1="'+corR+'" y1="'+basY+'" x2="'+corR+'" y2="'+corArcY+'" stroke="white" stroke-width="1"/>'+
       '<line x1="0" y1="'+basY+'" x2="320" y2="'+basY+'" stroke="white" stroke-width="1"/>'+
@@ -2700,18 +2509,17 @@ function generateReport(sessions,players,teamMeta){
 
   // Build HTML
   var periodHeaders=pN.map(function(n){return '<th style="width:50px">'+n+'</th>';}).join('');
-  var myPeriodCells=myQTotals.map(function(v){return '<td style="text-align:center;font-weight:500;">'+v+'</td>';}).join('');
-  var oppPeriodCells=oppQTotals.map(function(v){return '<td style="text-align:center;">'+v+'</td>';}).join('');
+  var myPeriodCells=pN.map(function(n,i){return '<td style="text-align:center;font-weight:500;">'+periodScore(gameSess,i)+'</td>';}).join('');
+  var oppPeriodCells=pN.map(function(n,i){return '<td style="text-align:center;">'+oppPeriodScore(i)+'</td>';}).join('');
 
   var playerRows=rows.map(function(r){
     var pmStr=r.pm>0?'+'+r.pm:(r.pm===0?'0':String(r.pm));
     var pmColor=r.pm>0?'#16a34a':r.pm<0?'#dc2626':'#374151';
     var dispName=(r.name?r.name+', ':'')+'#'+r.num;
-    var fgPct=r.fga>0?Math.round(r.fgm/r.fga*100)+'%':'—';
     return '<tr>'+
       '<td style="text-align:left;padding:5px 8px;font-size:12px;">'+dispName+'</td>'+
       '<td>'+r.pts+'</td><td>'+r.pf+'</td>'+
-      '<td>'+r.fgStr+'</td><td>'+fgPct+'</td><td>'+r.fg3Str+'</td><td>'+r.ftStr+'</td>'+
+      '<td>'+r.fgStr+'</td><td>'+r.fg3Str+'</td><td>'+r.ftStr+'</td>'+
       '<td>'+r.to+'</td><td>'+r.oReb+'</td><td>'+r.dReb+'</td><td>'+r.reb+'</td>'+
       '<td>'+r.ast+'</td><td>'+r.stl+'</td><td>'+r.blk+'</td>'+
       '<td style="color:'+pmColor+';font-weight:600;">'+pmStr+'</td>'+
@@ -2813,10 +2621,6 @@ function generateReport(sessions,players,teamMeta){
     '.footer{margin-top:22px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;}'+
     '.brand{font-size:11px;font-weight:600;color:#6b7280;letter-spacing:2px;text-transform:uppercase;}'+
     '.date{font-size:11px;color:#9ca3af;}'+
-    '.close-bar{position:fixed;top:0;left:0;right:0;background:#1e3a5f;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.2);}'+
-    '.close-bar span{color:#fff;font-size:13px;font-weight:600;letter-spacing:1px;}'+
-    '.close-btn{background:#fff;border:none;color:#1e3a5f;font-size:13px;font-weight:700;padding:6px 18px;border-radius:20px;cursor:pointer;letter-spacing:1px;}'+
-    '@media print{.close-bar{display:none;}}'+
     '.player-page{}'+
     '.player-header{display:flex;align-items:center;gap:14px;margin-bottom:14px;}'+
     '.player-num{width:50px;height:50px;border-radius:50%;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#fff;flex-shrink:0;}'+
@@ -2831,8 +2635,6 @@ function generateReport(sessions,players,teamMeta){
     '.sb-label{font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
     '.sb-val{font-size:17px;font-weight:600;color:#111;}.sb-pct{font-size:11px;color:#6b7280;}'+
   '</style></head><body>'+
-  '<div class="close-bar"><span>ShotTracker 4.0 — Game Report</span><div style="display:flex;gap:8px;align-items:center;"><button class="close-btn" onclick="copyBoxScore()" style="background:#f59e0b;color:#fff;border:none;">📋 Copy</button><button class="close-btn" onclick="window.print()" style="background:#16a34a;color:#fff;border:none;">🖨 Print</button><button class="close-btn" onclick="window.close()">✕ Close</button></div></div>'+
-  '<div style="height:48px;"></div>'+
   '<div class="page">'+
     '<h1>'+teamMeta.name+' <strong>'+gameScore.my+'</strong> &ndash; '+opp+' <strong>'+gameScore.opp+'</strong></h1>'+
     '<h3>'+gDate+' · ShotTracker 4.0</h3>'+
@@ -2842,15 +2644,15 @@ function generateReport(sessions,players,teamMeta){
       '<div class="sb-head" style="font-weight:700;color:#111;">T</div>'+
       '<div class="sb-cell-s" style="padding-left:12px;font-weight:600;">'+teamMeta.name+'</div>'+
       myPeriodCells+
-      '<div class="sb-cell-s sb-total" style="text-align:center;">'+myFinalScore+'</div>'+
+      '<div class="sb-cell-s sb-total" style="text-align:center;">'+gameScore.my+'</div>'+
       '<div class="sb-cell-s" style="padding-left:12px;">'+opp+'</div>'+
       oppPeriodCells+
-      '<div class="sb-cell-s sb-total" style="text-align:center;">'+oppFinalScore+'</div>'+
+      '<div class="sb-cell-s sb-total" style="text-align:center;">'+gameScore.opp+'</div>'+
     '</div>'+
     '<h2>'+teamMeta.name+'</h2>'+
     '<table><thead><tr>'+
       '<th class="left" style="min-width:120px;">Player</th>'+
-      '<th>PTS</th><th>PF</th><th>FG</th><th>FG%</th><th>3PT</th><th>FT</th>'+
+      '<th>PTS</th><th>PF</th><th>FG</th><th>3PT</th><th>FT</th>'+
       '<th>TO</th><th>ORB</th><th>DRB</th><th>REB</th>'+
       '<th>AST</th><th>STL</th><th>BLK</th><th>+/&minus;</th>'+
     '</tr></thead><tbody>'+
@@ -2858,7 +2660,7 @@ function generateReport(sessions,players,teamMeta){
     '<tr class="totals">'+
       '<td class="left">Totals</td>'+
       '<td>'+teamTotals.pts+'</td><td>'+teamTotals.pf+'</td>'+
-      '<td>'+totFgStr+'</td><td>'+(teamTotals.fg2a+teamTotals.fg3a>0?Math.round((teamTotals.fg2m+teamTotals.fg3m)/(teamTotals.fg2a+teamTotals.fg3a)*100)+'%':'—')+'</td><td>'+totFg3Str+'</td><td>'+totFtStr+'</td>'+
+      '<td>'+totFgStr+'</td><td>'+totFg3Str+'</td><td>'+totFtStr+'</td>'+
       '<td>'+teamTotals.to+'</td><td>'+teamTotals.oReb+'</td><td>'+teamTotals.dReb+'</td><td>'+totReb+'</td>'+
       '<td>'+teamTotals.ast+'</td><td>'+teamTotals.stl+'</td><td>'+teamTotals.blk+'</td><td>0</td>'+
     '</tr></tbody></table>'+
@@ -2891,35 +2693,13 @@ function generateReport(sessions,players,teamMeta){
     '<div class="footer"><div class="brand">ShotTracker 4.0</div><div class="date">Generated '+new Date().toLocaleDateString()+'</div></div>'+
   '</div>'+
   playerPages+
-  '<script>'+
-  'function copyBoxScore(){'+
-    'var lines=[];'+
-    'var title=document.querySelector("h1");'+
-    'var h3=document.querySelector("h3");'+
-    'if(title) lines.push(title.innerText);'+
-    'if(h3) lines.push(h3.innerText);'+
-    'lines.push("");'+
-    'var table=document.querySelector("table");'+
-    'if(table){'+
-      'var rows=table.querySelectorAll("tr");'+
-      'rows.forEach(function(r){'+
-        'var cells=r.querySelectorAll("th,td");'+
-        'var line=Array.from(cells).map(function(c){return c.innerText.trim().padEnd(10);}).join(" ");'+
-        'lines.push(line);'+
-      '});'+
-    '}'+
-    'var text=lines.join("\\n");'+
-    'navigator.clipboard.writeText(text).then(function(){alert("Box score copied to clipboard!");}).catch(function(){'+
-      'var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);alert("Box score copied!");'+
-    '});'+
-  '}'+
-  '<\/script>'+
   '</body></html>';
 
   var w=window.open('','_blank');
   if(w){
     w.document.write(html);
     w.document.close();
+    setTimeout(function(){w.print();},400);
   }
 }
 
@@ -3120,7 +2900,7 @@ function TeamSelector(props){
               <React.Fragment>
                 {teams.length>1&&<button onClick={function(){setHistTeam(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← All Teams</button>}
                 <div style={{fontSize:14,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{histTeam.name}</div>
-                <HistoryView teamMeta={histTeam} players={td.players} sessions={td.sessions} onDelSession={function(id){var ns=td.sessions.filter(function(s){return s.id!==id;});lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}} onRecalcSessions={function(ns){lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}}/>
+                <HistoryView teamMeta={histTeam} players={td.players} sessions={td.sessions} onDelSession={function(id){var ns=td.sessions.filter(function(s){return s.id!==id;});lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}}/>
               </React.Fragment>
             );
           })()}
