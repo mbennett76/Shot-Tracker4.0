@@ -1534,50 +1534,17 @@ function SessionTypeScreen(props){
 
 
 // ── Voice Input ────────────────────────────────────────────────────────────────
-function VoiceInput(props){
-  var onTranscript=props.onTranscript,onInterim=props.onInterim,onStatus=props.onStatus;
-  var listeningState=useState(false);
-  var listening=listeningState[0],setListening=listeningState[1];
-  var recRef=useRef(null);
-
-  function startListening(){
-    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){onStatus('unsupported');return;}
-    var rec=new SR();
-    rec.continuous=false;rec.interimResults=true;rec.lang='en-US';rec.maxAlternatives=1;
-    rec.onstart=function(){setListening(true);onStatus('listening');};
-    rec.onresult=function(e){
-      var interim='',final='';
-      for(var i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal) final+=e.results[i][0].transcript;
-        else interim+=e.results[i][0].transcript;
-      }
-      if(interim) onInterim(interim);
-      if(final.trim()) onTranscript(final.trim());
-    };
-    rec.onerror=function(e){
-      if(e.error==='no-speech'){setListening(false);onStatus('idle');return;}
-      if(e.error==='not-allowed'){onStatus('denied');setListening(false);return;}
-      if(e.error==='aborted') return;
-      setListening(false);onStatus('error');
-    };
-    rec.onend=function(){recRef.current=null;setListening(false);onStatus('done');};
-    recRef.current=rec;
-    try{rec.start();}catch(e){recRef.current=null;onStatus('error');}
-  }
-  function stopListening(){
-    if(recRef.current){recRef.current.onend=null;try{recRef.current.stop();}catch(e){}recRef.current=null;}
-    setListening(false);onStatus('idle');
-  }
-  function toggle(e){e.stopPropagation();if(listening) stopListening();else startListening();}
-
+function MicBtn(props){
+  var active=props.active,onTap=props.onTap,size=props.size||40;
   return (
-    <button onClick={toggle} style={{width:40,height:40,borderRadius:20,border:listening?'none':'1.5px solid '+T.border,
-      background:listening?T.red:T.card,color:listening?'#fff':T.t3,
-      fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
-      boxShadow:listening?'0 0 0 4px rgba(220,38,38,0.25),0 2px 8px rgba(220,38,38,0.3)':T.shadow,
-      animation:listening?'pulse 1.5s ease-in-out infinite':'none',
-      userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+    <button onClick={function(e){e.stopPropagation();onTap();}}
+      style={{width:size,height:size,borderRadius:size/2,flexShrink:0,
+        border:active?'none':'1.5px solid '+T.border,
+        background:active?T.red:T.card,color:active?'#fff':T.t3,
+        fontSize:size*0.45,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+        boxShadow:active?'0 0 0 4px rgba(220,38,38,0.25),0 2px 8px rgba(220,38,38,0.3)':T.shadow,
+        animation:active?'pulse 1.5s ease-in-out infinite':'none',
+        userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
       🎙
     </button>
   );
@@ -1873,14 +1840,17 @@ function UndoPopup(props){
 
 // ── Assist Popup ───────────────────────────────────────────────────────────────
 function AssistPopup(props){
-  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist,voiceBar=props.voiceBar;
+  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist,voiceBar=props.voiceBar,onMicTap=props.onMicTap;
+  useEffect(function(){
+    if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();
+  },[]);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist?</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:12,letterSpacing:1}}>Who got the assist on that basket?</div>
-        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18,flexShrink:0}}>🎙</span><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Say a number or "no assist"</span>}</div></div>}
+        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic — say a number or "no assist"</span>}</div></div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {onFloorPlayers.map(function(p){
             var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
@@ -1908,8 +1878,11 @@ function AssistPopup(props){
 
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
-  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound,voiceBar=props.voiceBar;
+  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound,voiceBar=props.voiceBar,onMicTap=props.onMicTap;
   var isOppShot=shooter==='opp';
+  useEffect(function(){
+    if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();
+  },[]);
   var title=isOppShot?'Opponent missed — who rebounded?':'Home missed — who rebounded?';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
@@ -1917,7 +1890,7 @@ function ReboundPopup(props){
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Rebound</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>{title}</div>
-        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18,flexShrink:0}}>🎙</span><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Say a number, "opponent", or "no rebound"</span>}</div></div>}
+        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic — say number, "opponent", or "no rebound"</span>}</div></div>}
         {onFloorPlayers.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No players on floor.</div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
           {onFloorPlayers.map(function(p){
@@ -2090,6 +2063,7 @@ function Tracker(props){
   var voiceResultState=useState('');
   var voiceResult=voiceResultState[0],setVoiceResult=voiceResultState[1];
   var voiceTmr=useRef(null);
+  var recognitionRef=useRef(null);
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -2375,8 +2349,45 @@ function Tracker(props){
   function showVoiceFeedback(label,ok){
     setVoiceResult(label);setVoiceStatus(ok?'success':'error');
     clearTimeout(voiceTmr.current);
-    voiceTmr.current=setTimeout(function(){setVoiceStatus('listening');setVoiceResult('');setVoiceTranscript('');},2500);
+    voiceTmr.current=setTimeout(function(){setVoiceStatus('idle');setVoiceResult('');setVoiceTranscript('');},2500);
     if(ok) vib(40);
+  }
+
+  function startVoiceRecognition(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){setVoiceStatus('unsupported');setVoiceResult('Voice not supported in this browser');return;}
+    if(recognitionRef.current) return; // already running
+    var rec=new SR();
+    rec.continuous=false;rec.interimResults=true;rec.lang='en-US';rec.maxAlternatives=1;
+    rec.onstart=function(){setVoiceStatus('listening');};
+    rec.onresult=function(e){
+      var interim='',final='';
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+        else interim+=e.results[i][0].transcript;
+      }
+      if(interim) setVoiceTranscript(interim);
+      if(final.trim()) handleVoiceTranscript(final.trim());
+    };
+    rec.onerror=function(e){
+      if(e.error==='no-speech'){setVoiceStatus('idle');return;}
+      if(e.error==='not-allowed'){setVoiceStatus('error');setVoiceResult('✗ Mic blocked — check Settings → Safari → Microphone');return;}
+      if(e.error==='aborted') return;
+      setVoiceStatus('error');
+    };
+    rec.onend=function(){recognitionRef.current=null;if(voiceStatus!=='success'&&voiceStatus!=='error') setVoiceStatus('idle');};
+    recognitionRef.current=rec;
+    try{rec.start();}catch(e){recognitionRef.current=null;setVoiceStatus('error');}
+  }
+
+  function stopVoiceRecognition(){
+    if(recognitionRef.current){recognitionRef.current.onend=null;try{recognitionRef.current.stop();}catch(e){}recognitionRef.current=null;}
+    setVoiceStatus('idle');setVoiceTranscript('');
+  }
+
+  function toggleVoice(){
+    if(voiceStatus==='listening') stopVoiceRecognition();
+    else startVoiceRecognition();
   }
 
   function handleVoiceTranscript(text){
@@ -2444,8 +2455,8 @@ function Tracker(props){
     function isShotCmd(){return /\bmade\b|\bmake\b|\bscored?\b|\bmissed?\b|\bno good\b/.test(t);}
     function getMake(){return /\bmade\b|\bmake\b|\bscored?\b/.test(t);}
     function getShotType(){
-      if(/\bthree\b|\b3pt\b|\bthree.pointer\b|\bthree pointer\b/.test(t)) return '3PT';
       if(/\bfree throw\b|\bfree throws\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';
+      if(/\bthree\b|\b3pt\b|\bthree.pointer\b|\bthree pointer\b/.test(t)) return '3PT';
       return '2PT';
     }
     function isOpp(){return /\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);}
@@ -2718,17 +2729,26 @@ function Tracker(props){
 
             {/* Voice + notice bar */}
             <div style={{display:'flex',alignItems:'center',gap:8,minHeight:44}}>
-              <VoiceInput
-                onTranscript={function(text){if(isGame) handleVoiceTranscript(text);}}
-                onInterim={function(text){setVoiceTranscript(text);}}
-                onStatus={function(s){
-                  setVoiceStatus(s);
-                  if(s==='idle'){clearTimeout(voiceTmr.current);setVoiceTranscript('');setVoiceResult('');}
-                  if(s==='done') clearTimeout(voiceTmr.current);
-                  if(s==='unsupported') setVoiceResult('Voice not supported in this browser');
-                  if(s==='denied') setVoiceResult('✗ Mic blocked — check Settings → Safari → Microphone');
-                }}
-              />
+              <MicBtn active={voiceStatus==='listening'} onTap={toggleVoice}/>
+              <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
+                {voiceStatus==='listening'&&voiceTranscript
+                  ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
+                    "<span style={{color:T.t2,fontStyle:'normal'}}>{voiceTranscript}</span>"
+                  </div>
+                  :voiceStatus==='success'
+                  ?<div style={{color:T.green,fontSize:15,fontWeight:700,letterSpacing:1,textAlign:'center'}}>{voiceResult}</div>
+                  :(voiceStatus==='error'||voiceStatus==='denied')
+                  ?<div style={{color:T.red,fontSize:15,fontWeight:700,textAlign:'center'}}>{voiceResult||'✗ Not recognised'}</div>
+                  :awaitCourt
+                  ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
+                    ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
+                  </div>
+                  :notice
+                  ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{notice.label}</div>
+                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1,textAlign:'center'}}>🎙 Tap mic or use buttons</div>
+                }
+              </div>
+            </div>
               <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
                 {voiceStatus==='listening'&&voiceTranscript
                   ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
@@ -2900,6 +2920,7 @@ function Tracker(props){
         players={players}
         onAssist={handleAssist}
         voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
+        onMicTap={toggleVoice}
       />}
 
       {/* Rebound popup */}
@@ -2909,6 +2930,7 @@ function Tracker(props){
         players={players}
         onRebound={handleRebound}
         voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
+        onMicTap={toggleVoice}
       />}
 
       {/* Substitution popup */}
