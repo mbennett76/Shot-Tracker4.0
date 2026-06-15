@@ -1533,6 +1533,50 @@ function SessionTypeScreen(props){
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
 
+// ── Voice Input ────────────────────────────────────────────────────────────────
+function VoiceInput(props){
+  var onTranscript=props.onTranscript,onInterim=props.onInterim,onStatus=props.onStatus;
+  var listeningState=useState(false);
+  var listening=listeningState[0],setListening=listeningState[1];
+  var recRef=useRef(null);
+
+  function startListening(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){onStatus('unsupported');return;}
+    var rec=new SR();
+    rec.continuous=true;rec.interimResults=true;rec.lang='en-US';
+    rec.onresult=function(e){
+      var interim='',final='';
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+        else interim+=e.results[i][0].transcript;
+      }
+      if(interim) onInterim(interim);
+      if(final.trim()) onTranscript(final.trim());
+    };
+    rec.onerror=function(e){if(e.error==='no-speech'||e.error==='aborted') return;onStatus('error');};
+    rec.onend=function(){if(recRef.current===rec){try{rec.start();}catch(e){}}};
+    recRef.current=rec;
+    try{rec.start();setListening(true);onStatus('listening');}catch(e){onStatus('error');}
+  }
+  function stopListening(){
+    if(recRef.current){recRef.current.onend=null;try{recRef.current.stop();}catch(e){}recRef.current=null;}
+    setListening(false);onStatus('idle');
+  }
+  function toggle(e){e.stopPropagation();if(listening) stopListening();else startListening();}
+
+  return (
+    <button onClick={toggle} style={{width:40,height:40,borderRadius:20,border:listening?'none':'1.5px solid '+T.border,
+      background:listening?T.red:T.card,color:listening?'#fff':T.t3,
+      fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,
+      boxShadow:listening?'0 0 0 4px rgba(220,38,38,0.25),0 2px 8px rgba(220,38,38,0.3)':T.shadow,
+      animation:listening?'pulse 1.5s ease-in-out infinite':'none',
+      userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+      🎙
+    </button>
+  );
+}
+
 // ── Undo Popup ─────────────────────────────────────────────────────────────────
 var STAT_LABEL_TO_KEY={'O REB':'oReb','D REB':'dReb','TO':'to','AST':'ast','BLK':'blk','STL':'stl','FOUL':'foul'};
 var OPP_ELIGIBLE_STATS=['oReb','dReb','to','foul'];
@@ -2032,6 +2076,13 @@ function Tracker(props){
   var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showUndoPopupState=useState(false);
   var showUndoPopup=showUndoPopupState[0],setShowUndoPopup=showUndoPopupState[1];
+  var voiceTranscriptState=useState('');
+  var voiceTranscript=voiceTranscriptState[0],setVoiceTranscript=voiceTranscriptState[1];
+  var voiceStatusState=useState('idle');
+  var voiceStatus=voiceStatusState[0],setVoiceStatus=voiceStatusState[1];
+  var voiceResultState=useState('');
+  var voiceResult=voiceResultState[0],setVoiceResult=voiceResultState[1];
+  var voiceTmr=useRef(null);
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -2314,6 +2365,138 @@ function Tracker(props){
     }
   }
 
+  function showVoiceFeedback(label,ok){
+    setVoiceResult(label);setVoiceStatus(ok?'success':'error');
+    clearTimeout(voiceTmr.current);
+    voiceTmr.current=setTimeout(function(){setVoiceStatus('listening');setVoiceResult('');setVoiceTranscript('');},2500);
+    if(ok) vib(40);
+  }
+
+  function handleVoiceTranscript(text){
+    setVoiceTranscript(text);
+    var t=text.toLowerCase();
+
+    // ── Number extraction ──────────────────────────────────────────────────
+    function wordToNum(w){
+      var map={'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,
+        'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,
+        'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19,
+        'twenty':20,'thirty':30,'forty':40,'fifty':50};
+      var comp=w.match(/^(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)$/);
+      if(comp) return ({twenty:20,thirty:30,forty:40,fifty:50}[comp[1]])+({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9}[comp[2]]);
+      return map[w]!=null?map[w]:null;
+    }
+    function extractNum(){
+      // "number X" pattern — digit or word
+      var m=t.match(/number\s+(\d{1,2})/);if(m) return parseInt(m[1]);
+      var mw=t.match(/number\s+((?:twenty|thirty|forty|fifty)(?:\s+(?:one|two|three|four|five|six|seven|eight|nine))?|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)/);
+      if(mw) return wordToNum(mw[1]);
+      // Bare digits
+      var digits=t.match(/\b(\d{1,2})\b/g);if(digits) return parseInt(digits[0]);
+      // Composite number words: "twenty three"
+      var comp=t.match(/\b(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/);
+      if(comp) return wordToNum(comp[1]+' '+comp[2]);
+      // Single word numbers (excluding two/three which may mean shot type)
+      var isShotCtx=/\bmade\b|\bmissed\b|\bshot\b/.test(t);
+      var singles={zero:0,one:1,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,
+        thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50};
+      if(!isShotCtx){singles.two=2;singles.three=3;}
+      for(var w in singles){if(new RegExp('\\b'+w+'\\b').test(t)) return singles[w];}
+      return null;
+    }
+
+    // ── Keyword detection ──────────────────────────────────────────────────
+    function isShotCmd(){return /\bmade\b|\bmake\b|\bscored?\b|\bmissed?\b|\bno good\b/.test(t);}
+    function getMake(){return /\bmade\b|\bmake\b|\bscored?\b/.test(t);}
+    function getShotType(){
+      if(/\bthree\b|\b3pt\b|\bthree.pointer\b|\bthree pointer\b/.test(t)) return '3PT';
+      if(/\bfree throw\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';
+      return '2PT';
+    }
+    function isOpp(){return /\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);}
+    function getStat(){
+      if(/\bfoul\b|\bfouled\b/.test(t)) return 'foul';
+      if(/\bturnover\b|\bturned over\b/.test(t)) return 'to';
+      if(/\bassist\b|\bassed\b/.test(t)) return 'ast';
+      if(/\bsteal\b|\bstole\b/.test(t)) return 'stl';
+      if(/\bblock\b|\bblocked\b/.test(t)) return 'blk';
+      if(/\boffensive rebound\b|\bo reb\b|\bo-reb\b|\boffensive board\b/.test(t)) return 'oReb';
+      if(/\bdefensive rebound\b|\bd reb\b|\bd-reb\b|\bdefensive board\b/.test(t)) return 'dReb';
+      if(/\brebound\b|\bboard\b/.test(t)) return 'dReb'; // default rebound = dReb
+      return null;
+    }
+
+    // ── Execute ────────────────────────────────────────────────────────────
+    var oppCmd=isOpp();
+    var num=extractNum();
+    var stat=getStat();
+    var shotCmd=isShotCmd();
+
+    // Find player on floor by number
+    var onFloor=sortedActive;
+    var pid=num!=null?onFloor.reduce(function(found,p){return (!found&&p.number===String(num))?p:found;},null):null;
+    if(!pid&&num!=null) pid=players.reduce(function(found,p){return (!found&&p.number===String(num))?p:found;},null);
+    var pidId=pid?pid.id:null;
+
+    if(oppCmd){
+      if(shotCmd){
+        // Opponent shot
+        var make=getMake();var st=getShotType();
+        var q=gs.q;
+        var label=st;var pts=make?(st==='3PT'?3:st==='FT'?1:2):0;
+        var entry={id:Date.now(),q:q,team:'opp',player:'Opponent',action:(make?'Made ':'Missed ')+label,pts:pts,ts:new Date().toISOString()};
+        setGs(function(g){
+          var newQs=(g.oppQs||[]).map(function(qd,i){
+            if(i!==q-1) return qd;
+            if(st==='3PT') return Object.assign({},qd,{fg3m:make?(qd.fg3m||0)+1:(qd.fg3m||0),fg3a:(qd.fg3a||0)+1});
+            if(st==='FT') return Object.assign({},qd,{ftm:make?(qd.ftm||0)+1:(qd.ftm||0),fta:(qd.fta||0)+1});
+            return Object.assign({},qd,{fg2m:make?(qd.fg2m||0)+1:(qd.fg2m||0),fg2a:(qd.fg2a||0)+1});
+          });
+          return Object.assign({},g,{oppQs:newQs,playLog:(g.playLog||[]).concat([entry])});
+        });
+        showVoiceFeedback('✓ OPP '+(make?'Made':'Missed')+' '+st,true);
+      } else if(stat){
+        // Opponent stat
+        handleOppStat(gs.q,stat,1);
+        var lbl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};
+        showVoiceFeedback('✓ OPP '+lbl.label,true);
+      } else {showVoiceFeedback('✗ Not recognised',false);}
+      return;
+    }
+
+    if(pidId&&stat){
+      // Home player stat
+      handleStat(stat,1,pidId);
+      var sLbl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};
+      showVoiceFeedback('✓ '+sLbl.label+' · #'+num,true);
+      return;
+    }
+
+    if(pidId&&shotCmd){
+      // Home player shot
+      var make=getMake();var st=getShotType();
+      if(st==='FT'){
+        recordFT(make,pidId);
+        showVoiceFeedback('✓ '+(make?'Made':'Missed')+' FT · #'+num,true);
+      } else {
+        setMode(make?'make':'miss');
+        setAwaitCourt({make:make,shotType:st,playerId:pidId});
+        showVoiceFeedback('↓ Tap court · #'+num+' '+(make?'MAKE':'MISS')+' '+st,true);
+      }
+      return;
+    }
+
+    if(stat&&!pidId&&shotCmd===false){
+      // Stat without player — open stat popup
+      handleStatChipTap(stat);
+      var sLbl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};
+      showVoiceFeedback('✓ '+sLbl.label+' — select player',true);
+      return;
+    }
+
+    showVoiceFeedback('✗ Not recognised',false);
+  }
+
   function handleSave(opts){
     var label=opts.label,exportAfter=opts.exportAfter,date=todayStr(),ns=sessions.slice();
     if(isGame){
@@ -2498,16 +2681,35 @@ function Tracker(props){
                   textTransform:'uppercase',boxShadow:'none'}}>🔄 Substitution</button>
             </div>
 
-            {/* Court notice / prompt */}
-            <div style={{minHeight:28,display:'flex',alignItems:'center',justifyContent:'center'}}>
-              {awaitCourt
-                ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 20px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite'}}>
-                  ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
-                </div>
-                :notice
-                  ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase'}}>{notice.label}</div>
-                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1}}>Tap Make or Miss, then select shot type</div>
-              }
+            {/* Voice + notice bar */}
+            <div style={{display:'flex',alignItems:'center',gap:8,minHeight:44}}>
+              <VoiceInput
+                onTranscript={function(text){if(isGame) handleVoiceTranscript(text);}}
+                onInterim={function(text){setVoiceTranscript(text);}}
+                onStatus={function(s){
+                  setVoiceStatus(s);
+                  if(s==='idle'){clearTimeout(voiceTmr.current);setVoiceTranscript('');setVoiceResult('');}
+                  if(s==='unsupported') setVoiceResult('Voice not supported in this browser');
+                }}
+              />
+              <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
+                {voiceStatus==='listening'&&voiceTranscript
+                  ?<div style={{fontSize:11,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
+                    "<span style={{color:T.t2,fontStyle:'normal'}}>{voiceTranscript}</span>"
+                  </div>
+                  :voiceStatus==='success'
+                  ?<div style={{color:T.green,fontSize:11,fontWeight:700,letterSpacing:1,textAlign:'center'}}>{voiceResult}</div>
+                  :voiceStatus==='error'
+                  ?<div style={{color:T.red,fontSize:11,fontWeight:700,textAlign:'center'}}>{voiceResult||'✗ Not recognised'}</div>
+                  :awaitCourt
+                  ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
+                    ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
+                  </div>
+                  :notice
+                  ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{notice.label}</div>
+                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1,textAlign:'center'}}>🎙 Voice or tap to record</div>
+                }
+              </div>
             </div>
 
             {/* Heat map toggle */}
