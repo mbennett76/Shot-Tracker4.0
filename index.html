@@ -2130,8 +2130,8 @@ function Tracker(props){
     },0);
   }
 
-  var STAT_ROW1=[GSTATS[0],GSTATS[1],GSTATS[2],GSTATS[3]]; // oReb,dReb,to,ast
-  var STAT_ROW2=[GSTATS[4],GSTATS[6],GSTATS[5]]; // blk,foul,stl
+  var STAT_ROW1=[GSTATS[6],GSTATS[2],GSTATS[5],GSTATS[4]]; // foul,to,stl,blk
+  var STAT_ROW2=[GSTATS[1],GSTATS[0],GSTATS[3]]; // dReb,oReb,ast
 
   return (
     <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 12px 40px',maxWidth:520,margin:'0 auto',width:'100%'}}>
