@@ -1533,6 +1533,295 @@ function SessionTypeScreen(props){
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
 
+// ── Undo Popup ─────────────────────────────────────────────────────────────────
+var STAT_LABEL_TO_KEY={'O REB':'oReb','D REB':'dReb','TO':'to','AST':'ast','BLK':'blk','STL':'stl','FOUL':'foul'};
+var OPP_ELIGIBLE_STATS=['oReb','dReb','to','foul'];
+function UndoPopup(props){
+  var gs=props.gs,players=props.players,sortedActive=props.sortedActive,pNames=props.pNames;
+  var onClose=props.onClose,onApply=props.onApply;
+  var editEntryState=useState(null);var editEntry=editEntryState[0],setEditEntry=editEntryState[1];
+  var editStepState=useState(null);var editStep=editStepState[0],setEditStep=editStepState[1];
+
+  var log=gs.playLog||[];
+  var lastFour=log.slice(-4).slice().reverse();
+
+  function isShot(action){return action&&(action.startsWith('Made ')||action.startsWith('Missed '));}
+  function isFTAction(action){return action&&(action.includes('Free Throw')||action.includes('FT'));}
+  function getStatKey(action){return STAT_LABEL_TO_KEY[action]||null;}
+
+  function findPid(playerNum){
+    var p=players.find(function(p){return p.number===playerNum;});
+    return p?p.id:null;
+  }
+
+  function reverseEntry(g,entry){
+    var qIdx=(entry.q||1)-1;
+    if(entry.team==='home'){
+      var pid=findPid(entry.player);
+      if(!pid||!g.pdata[pid]) return g;
+      if(isShot(entry.action)){
+        var make=entry.action.startsWith('Made');
+        var isFT=isFTAction(entry.action);
+        var sType=entry.action.replace('Made ','').replace('Missed ','');
+        var newQs=g.pdata[pid].qs.map(function(qd,i){
+          if(i!==qIdx) return qd;
+          if(isFT){
+            var shots=qd.ftShots||[];
+            var ridx=-1;
+            for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make){ridx=j;break;}}
+            return ridx>=0?Object.assign({},qd,{ftShots:shots.filter(function(_,k){return k!==ridx;})}):qd;
+          } else {
+            var shots=qd.shots||[];
+            var ridx=-1;
+            for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make&&shots[j].type===sType){ridx=j;break;}}
+            return ridx>=0?Object.assign({},qd,{shots:shots.filter(function(_,k){return k!==ridx;})}):qd;
+          }
+        });
+        var newPdata=Object.assign({},g.pdata);
+        newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
+        return Object.assign({},g,{pdata:newPdata});
+      } else {
+        var sk=getStatKey(entry.action);
+        if(!sk) return g;
+        var newQs=g.pdata[pid].qs.map(function(qd,i){
+          return i===qIdx?Object.assign({},qd,{[sk]:Math.max(0,(qd[sk]||0)-1)}):qd;
+        });
+        var newPdata=Object.assign({},g.pdata);
+        newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
+        return Object.assign({},g,{pdata:newPdata});
+      }
+    } else {
+      var make=entry.action.startsWith('Made');
+      var label=entry.action.replace('Made ','').replace('Missed ','');
+      var newOppQs=(g.oppQs||[]).map(function(qd,i){
+        if(i!==qIdx) return qd;
+        if(label==='3PT') return Object.assign({},qd,{fg3a:Math.max(0,(qd.fg3a||0)-1),fg3m:make?Math.max(0,(qd.fg3m||0)-1):(qd.fg3m||0)});
+        if(label==='FT'||label.includes('Free Throw')) return Object.assign({},qd,{fta:Math.max(0,(qd.fta||0)-1),ftm:make?Math.max(0,(qd.ftm||0)-1):(qd.ftm||0)});
+        return Object.assign({},qd,{fg2a:Math.max(0,(qd.fg2a||0)-1),fg2m:make?Math.max(0,(qd.fg2m||0)-1):(qd.fg2m||0)});
+      });
+      return Object.assign({},g,{oppQs:newOppQs});
+    }
+  }
+
+  function applyHomeStat(g,sk,qIdx,pid){
+    var newQs=g.pdata[pid].qs.map(function(qd,i){
+      return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;
+    });
+    var newPdata=Object.assign({},g.pdata);
+    newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
+    return Object.assign({},g,{pdata:newPdata});
+  }
+
+  function applyHomeShot(g,entry,qIdx,newPid){
+    // Move shot object from old player to new player
+    var oldPid=findPid(entry.player);
+    var make=entry.action.startsWith('Made');
+    var isFT=isFTAction(entry.action);
+    var sType=entry.action.replace('Made ','').replace('Missed ','');
+    var shotObj=null;
+    // Find and remove from old player
+    var newQsOld=g.pdata[oldPid].qs.map(function(qd,i){
+      if(i!==qIdx) return qd;
+      if(isFT){
+        var shots=qd.ftShots||[];
+        var ridx=-1;
+        for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make){ridx=j;break;}}
+        if(ridx>=0){shotObj=shots[ridx];return Object.assign({},qd,{ftShots:shots.filter(function(_,k){return k!==ridx;})});}
+      } else {
+        var shots=qd.shots||[];
+        var ridx=-1;
+        for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make&&shots[j].type===sType){ridx=j;break;}}
+        if(ridx>=0){shotObj=shots[ridx];return Object.assign({},qd,{shots:shots.filter(function(_,k){return k!==ridx;})});}
+      }
+      return qd;
+    });
+    var newPdata=Object.assign({},g.pdata);
+    newPdata[oldPid]=Object.assign({},g.pdata[oldPid],{qs:newQsOld});
+    // Add to new player
+    if(shotObj&&newPdata[newPid]){
+      var newQsNew=newPdata[newPid].qs.map(function(qd,i){
+        if(i!==qIdx) return qd;
+        if(isFT) return Object.assign({},qd,{ftShots:(qd.ftShots||[]).concat([shotObj])});
+        return Object.assign({},qd,{shots:(qd.shots||[]).concat([shotObj])});
+      });
+      newPdata[newPid]=Object.assign({},newPdata[newPid],{qs:newQsNew});
+    }
+    return Object.assign({},g,{pdata:newPdata});
+  }
+
+  function applyOppStat(g,sk,qIdx){
+    var newOppQs=(g.oppQs||[]).map(function(qd,i){
+      return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;
+    });
+    return Object.assign({},g,{oppQs:newOppQs});
+  }
+
+  function doDelete(){
+    var entry=editEntry;
+    var newG=reverseEntry(gs,entry);
+    newG=Object.assign({},newG,{playLog:(newG.playLog||[]).filter(function(e){return e.id!==entry.id;})});
+    onApply(newG);
+    setEditEntry(null);setEditStep(null);
+  }
+
+  function doChangePlayer(newPid){
+    var entry=editEntry;
+    var qIdx=(entry.q||1)-1;
+    var sk=getStatKey(entry.action);
+    var newEntry=Object.assign({},entry);
+    var newG=gs;
+    if(sk){
+      newG=reverseEntry(gs,entry);
+      newG=applyHomeStat(newG,sk,qIdx,newPid);
+      var newPlayer=players.find(function(p){return p.id===newPid;});
+      newEntry=Object.assign({},newEntry,{player:newPlayer?newPlayer.number:entry.player});
+    } else if(isShot(entry.action)){
+      newG=applyHomeShot(gs,entry,qIdx,newPid);
+      var newPlayer=players.find(function(p){return p.id===newPid;});
+      newEntry=Object.assign({},newEntry,{player:newPlayer?newPlayer.number:entry.player});
+    }
+    var newLog=(newG.playLog||[]).map(function(e){return e.id===entry.id?newEntry:e;});
+    newG=Object.assign({},newG,{playLog:newLog});
+    onApply(newG);setEditEntry(null);setEditStep(null);
+  }
+
+  function doChangeToOpp(){
+    var entry=editEntry;
+    var qIdx=(entry.q||1)-1;
+    var sk=getStatKey(entry.action);
+    if(!sk) return;
+    var newG=reverseEntry(gs,entry);
+    newG=applyOppStat(newG,sk,qIdx);
+    var newEntry=Object.assign({},entry,{team:'opp',player:'Opponent'});
+    var newLog=(newG.playLog||[]).map(function(e){return e.id===entry.id?newEntry:e;});
+    newG=Object.assign({},newG,{playLog:newLog});
+    onApply(newG);setEditEntry(null);setEditStep(null);
+  }
+
+  function doChangeStat(newSk){
+    var entry=editEntry;
+    var qIdx=(entry.q||1)-1;
+    var pid=findPid(entry.player);
+    if(!pid) return;
+    var newG=reverseEntry(gs,entry);
+    newG=applyHomeStat(newG,newSk,qIdx,pid);
+    var newLabel=GSTATS.find(function(g){return g.key===newSk;})||{label:newSk};
+    var newEntry=Object.assign({},entry,{action:newLabel.label});
+    var newLog=(newG.playLog||[]).map(function(e){return e.id===entry.id?newEntry:e;});
+    newG=Object.assign({},newG,{playLog:newLog});
+    onApply(newG);setEditEntry(null);setEditStep(null);
+  }
+
+  function entryDisplay(entry){
+    var pLabel=entry.team==='opp'?'OPP':'#'+entry.player;
+    var pName=pNames?pNames[(entry.q||1)-1]:'Q'+(entry.q||1);
+    return pLabel+' · '+entry.action+' · '+pName;
+  }
+
+  var iS={width:'100%',boxSizing:'border-box',padding:'13px 14px',borderRadius:10,border:'1px solid '+T.border,background:T.bg,color:T.t1,fontSize:13,display:'flex',alignItems:'center',gap:10,cursor:'pointer',marginBottom:6,textAlign:'left',userSelect:'none',WebkitUserSelect:'none'};
+
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={function(){if(!editStep){onClose();}}} >
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd,maxHeight:'80vh',overflowY:'auto'}} onClick={function(e){e.stopPropagation();}}>
+        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 16px'}}/>
+
+        {/* STEP: list */}
+        {!editEntry&&(
+          <React.Fragment>
+            <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Edit Recent Actions</div>
+            <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Tap an action to edit or delete it</div>
+            {lastFour.length===0&&<div style={{textAlign:'center',padding:'24px',color:T.t4,fontSize:12}}>No actions recorded yet.</div>}
+            {lastFour.map(function(entry){
+              var isOpp=entry.team==='opp';
+              var pLabel=isOpp?'OPP':'#'+entry.player;
+              var pName=pNames[(entry.q||1)-1]||('Q'+(entry.q||1));
+              var entryColor=isOpp?T.red:T.accent;
+              return (
+                <button key={entry.id} onClick={function(){setEditEntry(entry);setEditStep('options');}} style={Object.assign({},iS,{border:'1px solid '+entryColor+'44',background:entryColor+'08'})}>
+                  <div style={{width:36,height:36,borderRadius:8,background:entryColor+'18',border:'1px solid '+entryColor+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:entryColor,flexShrink:0}}>{pLabel}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:T.t1}}>{entry.action}</div>
+                    <div style={{fontSize:10,color:T.t4,marginTop:2}}>{pName}</div>
+                  </div>
+                  <div style={{fontSize:16,color:T.t4}}>›</div>
+                </button>
+              );
+            })}
+            <button onClick={onClose} style={{width:'100%',padding:'12px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t4,fontSize:12,cursor:'pointer',marginTop:4}}>Close</button>
+          </React.Fragment>
+        )}
+
+        {/* STEP: options */}
+        {editEntry&&editStep==='options'&&(
+          <React.Fragment>
+            <button onClick={function(){setEditEntry(null);setEditStep(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+            <div style={{background:T.bg,borderRadius:12,padding:'12px 14px',border:'1px solid '+T.border,marginBottom:16}}>
+              <div style={{fontSize:11,color:T.t4,marginBottom:3,letterSpacing:1}}>Selected action</div>
+              <div style={{fontSize:14,fontWeight:700,color:T.t1}}>{entryDisplay(editEntry)}</div>
+            </div>
+            {editEntry.team==='home'&&(
+              <button onClick={function(){setEditStep('editPlayer');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:8,textAlign:'left',letterSpacing:1}}>
+                👤 Edit Player — move to a different player
+              </button>
+            )}
+            <button onClick={function(){setEditStep('editStat');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',letterSpacing:1}}>
+              📝 Edit Stat — delete or change stat type
+            </button>
+          </React.Fragment>
+        )}
+
+        {/* STEP: edit player */}
+        {editEntry&&editStep==='editPlayer'&&(
+          <React.Fragment>
+            <button onClick={function(){setEditStep('options');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+            <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Move to which player?</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+              {sortedActive.filter(function(p){return p.number!==editEntry.player;}).map(function(p){
+                var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+                var col=pc(p,pIdx);
+                return (
+                  <button key={p.id} onClick={function(){doChangePlayer(p.id);}}
+                    style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',color:col,fontSize:26,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {p.number}
+                  </button>
+                );
+              })}
+            </div>
+            {getStatKey(editEntry.action)&&OPP_ELIGIBLE_STATS.indexOf(getStatKey(editEntry.action))>-1&&(
+              <button onClick={doChangeToOpp} style={{width:'100%',padding:'13px',borderRadius:12,border:'2px solid '+T.t4,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,cursor:'pointer',textTransform:'uppercase',letterSpacing:2,marginBottom:8}}>🆚 Opponent</button>
+            )}
+          </React.Fragment>
+        )}
+
+        {/* STEP: edit stat */}
+        {editEntry&&editStep==='editStat'&&(
+          <React.Fragment>
+            <button onClick={function(){setEditStep('options');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+            <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Edit Stat</div>
+            <button onClick={doDelete} style={{width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.red,color:'#fff',fontSize:14,fontWeight:900,cursor:'pointer',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>🗑 Delete This Entry</button>
+            {editEntry.team==='home'&&getStatKey(editEntry.action)&&(
+              <React.Fragment>
+                <div style={{fontSize:10,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:8,fontWeight:700}}>Or change to</div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+                  {GSTATS.filter(function(g){return g.key!==getStatKey(editEntry.action);}).map(function(g){
+                    return (
+                      <button key={g.key} onClick={function(){doChangeStat(g.key);}}
+                        style={{padding:'12px',borderRadius:10,border:'1px solid '+g.color+'55',background:g.color+'18',color:g.color,fontSize:13,fontWeight:900,cursor:'pointer',textTransform:'uppercase',letterSpacing:1}}>
+                        {g.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </React.Fragment>
+            )}
+          </React.Fragment>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
 // ── Assist Popup ───────────────────────────────────────────────────────────────
 function AssistPopup(props){
   var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
@@ -1741,6 +2030,8 @@ function Tracker(props){
   var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
   var awaitAssistState=useState(false);
   var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
+  var showUndoPopupState=useState(false);
+  var showUndoPopup=showUndoPopupState[0],setShowUndoPopup=showUndoPopupState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -2012,22 +2303,7 @@ function Tracker(props){
 
   function handleUndo(){
     if(isGame){
-      setGs(function(g){
-        var pid=activePid;
-        if(!pid||!g.pdata[pid]) return g;
-        var newQs=g.pdata[pid].qs.map(function(q,i){
-          if(i!==g.q-1) return q;
-          var sh=q.shots||[],ft=q.ftShots||[];
-          var lG=sh.length>0?sh[sh.length-1].id:-1;
-          var lF=ft.length>0?ft[ft.length-1].id:-1;
-          if(lF>lG) return Object.assign({},q,{ftShots:ft.slice(0,-1)});
-          if(lG>-1) return Object.assign({},q,{shots:sh.slice(0,-1)});
-          return q;
-        });
-        var newPdata=Object.assign({},g.pdata);
-        newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
-        return Object.assign({},g,{pdata:newPdata,playLog:(g.playLog||[]).slice(0,-1)});
-      });
+      setShowUndoPopup(true);
     } else {
       var pDraft=pDrafts[activePid]||{shots:[],ftShots:[]};
       var sh=pDraft.shots||[],ft=pDraft.ftShots||[];
@@ -2367,6 +2643,16 @@ function Tracker(props){
         onPlayer={handlePlayerSelect}
         onOpponent={handleOppFromPopup}
         onCancel={function(){setPlayerPopup(null);}}
+      />}
+
+      {/* Undo popup */}
+      {showUndoPopup&&isGame&&<UndoPopup
+        gs={gs}
+        players={players}
+        sortedActive={sortedActive}
+        pNames={pNames}
+        onClose={function(){setShowUndoPopup(false);}}
+        onApply={function(newGs){setGs(newGs);setShowUndoPopup(false);}}
       />}
 
       {/* Assist popup */}
