@@ -1544,7 +1544,8 @@ function VoiceInput(props){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){onStatus('unsupported');return;}
     var rec=new SR();
-    rec.continuous=true;rec.interimResults=true;rec.lang='en-US';
+    rec.continuous=false;rec.interimResults=true;rec.lang='en-US';rec.maxAlternatives=1;
+    rec.onstart=function(){setListening(true);onStatus('listening');};
     rec.onresult=function(e){
       var interim='',final='';
       for(var i=e.resultIndex;i<e.results.length;i++){
@@ -1554,10 +1555,15 @@ function VoiceInput(props){
       if(interim) onInterim(interim);
       if(final.trim()) onTranscript(final.trim());
     };
-    rec.onerror=function(e){if(e.error==='no-speech'||e.error==='aborted') return;onStatus('error');};
-    rec.onend=function(){if(recRef.current===rec){try{rec.start();}catch(e){}}};
+    rec.onerror=function(e){
+      if(e.error==='no-speech'){setListening(false);onStatus('idle');return;}
+      if(e.error==='not-allowed'){onStatus('denied');setListening(false);return;}
+      if(e.error==='aborted') return;
+      setListening(false);onStatus('error');
+    };
+    rec.onend=function(){recRef.current=null;setListening(false);onStatus('done');};
     recRef.current=rec;
-    try{rec.start();setListening(true);onStatus('listening');}catch(e){onStatus('error');}
+    try{rec.start();}catch(e){recRef.current=null;onStatus('error');}
   }
   function stopListening(){
     if(recRef.current){recRef.current.onend=null;try{recRef.current.stop();}catch(e){}recRef.current=null;}
@@ -1576,7 +1582,6 @@ function VoiceInput(props){
     </button>
   );
 }
-
 // ── Undo Popup ─────────────────────────────────────────────────────────────────
 var STAT_LABEL_TO_KEY={'O REB':'oReb','D REB':'dReb','TO':'to','AST':'ast','BLK':'blk','STL':'stl','FOUL':'foul'};
 var OPP_ELIGIBLE_STATS=['oReb','dReb','to','foul'];
@@ -1868,13 +1873,14 @@ function UndoPopup(props){
 
 // ── Assist Popup ───────────────────────────────────────────────────────────────
 function AssistPopup(props){
-  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
+  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist,voiceBar=props.voiceBar;
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist?</div>
-        <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Who got the assist on that basket?</div>
+        <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:12,letterSpacing:1}}>Who got the assist on that basket?</div>
+        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18,flexShrink:0}}>🎙</span><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Say a number or "no assist"</span>}</div></div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {onFloorPlayers.map(function(p){
             var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
@@ -1902,7 +1908,7 @@ function AssistPopup(props){
 
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
-  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound;
+  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound,voiceBar=props.voiceBar;
   var isOppShot=shooter==='opp';
   var title=isOppShot?'Opponent missed — who rebounded?':'Home missed — who rebounded?';
   return (
@@ -1911,6 +1917,7 @@ function ReboundPopup(props){
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Rebound</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>{title}</div>
+        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18,flexShrink:0}}>🎙</span><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Say a number, "opponent", or "no rebound"</span>}</div></div>}
         {onFloorPlayers.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No players on floor.</div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
           {onFloorPlayers.map(function(p){
@@ -2376,6 +2383,34 @@ function Tracker(props){
     setVoiceTranscript(text);
     var t=text.toLowerCase();
 
+    // ── Route to rebound popup if open ────────────────────────────────────
+    if(awaitRebound){
+      var noReb=/\bno rebound\b|\bno reb\b|\bnone\b|\bskip\b/.test(t);
+      var oppReb=/\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);
+      var rebDigit=t.match(/\b(\d{1,2})\b/);
+      var rebNum=rebDigit?parseInt(rebDigit[1]):null;
+      var rebPlayer=rebNum!=null?sortedActive.find(function(p){return p.number===String(rebNum);}):null;
+      if(noReb){handleRebound('none',null);showVoiceFeedback('No Rebound',true);return;}
+      if(oppReb){handleRebound('opponent',null);showVoiceFeedback('✓ OPP Rebound',true);return;}
+      if(rebPlayer){
+        var rebStat=awaitRebound.shooter==='home'?'O REB':'D REB';
+        handleRebound('home-player',rebPlayer.id);
+        showVoiceFeedback('✓ '+rebStat+' · #'+rebNum,true);return;
+      }
+      showVoiceFeedback('✗ Say a number, "opponent", or "no rebound"',false);return;
+    }
+
+    // ── Route to assist popup if open ─────────────────────────────────────
+    if(awaitAssist){
+      var noAst=/\bno assist\b|\bno\b|\bnone\b|\bskip\b/.test(t);
+      var astDigit=t.match(/\b(\d{1,2})\b/);
+      var astNum=astDigit?parseInt(astDigit[1]):null;
+      var astPlayer=astNum!=null?sortedActive.find(function(p){return p.number===String(astNum);}):null;
+      if(noAst){handleAssist(null);showVoiceFeedback('No Assist',true);return;}
+      if(astPlayer){handleAssist(astPlayer.id);showVoiceFeedback('✓ AST · #'+astNum,true);return;}
+      showVoiceFeedback('✗ Say a player number or "no assist"',false);return;
+    }
+
     // ── Number extraction ──────────────────────────────────────────────────
     function wordToNum(w){
       var map={'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,
@@ -2410,7 +2445,7 @@ function Tracker(props){
     function getMake(){return /\bmade\b|\bmake\b|\bscored?\b/.test(t);}
     function getShotType(){
       if(/\bthree\b|\b3pt\b|\bthree.pointer\b|\bthree pointer\b/.test(t)) return '3PT';
-      if(/\bfree throw\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';
+      if(/\bfree throw\b|\bfree throws\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';
       return '2PT';
     }
     function isOpp(){return /\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);}
@@ -2689,18 +2724,20 @@ function Tracker(props){
                 onStatus={function(s){
                   setVoiceStatus(s);
                   if(s==='idle'){clearTimeout(voiceTmr.current);setVoiceTranscript('');setVoiceResult('');}
+                  if(s==='done') clearTimeout(voiceTmr.current);
                   if(s==='unsupported') setVoiceResult('Voice not supported in this browser');
+                  if(s==='denied') setVoiceResult('✗ Mic blocked — check Settings → Safari → Microphone');
                 }}
               />
               <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
                 {voiceStatus==='listening'&&voiceTranscript
-                  ?<div style={{fontSize:11,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
+                  ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
                     "<span style={{color:T.t2,fontStyle:'normal'}}>{voiceTranscript}</span>"
                   </div>
                   :voiceStatus==='success'
-                  ?<div style={{color:T.green,fontSize:11,fontWeight:700,letterSpacing:1,textAlign:'center'}}>{voiceResult}</div>
+                  ?<div style={{color:T.green,fontSize:15,fontWeight:700,letterSpacing:1,textAlign:'center'}}>{voiceResult}</div>
                   :voiceStatus==='error'
-                  ?<div style={{color:T.red,fontSize:11,fontWeight:700,textAlign:'center'}}>{voiceResult||'✗ Not recognised'}</div>
+                  ?<div style={{color:T.red,fontSize:15,fontWeight:700,textAlign:'center'}}>{voiceResult||'✗ Not recognised'}</div>
                   :awaitCourt
                   ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
                     ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
@@ -2862,6 +2899,7 @@ function Tracker(props){
         onFloorPlayers={sortedActive}
         players={players}
         onAssist={handleAssist}
+        voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
       />}
 
       {/* Rebound popup */}
@@ -2870,6 +2908,7 @@ function Tracker(props){
         onFloorPlayers={sortedActive}
         players={players}
         onRebound={handleRebound}
+        voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
       />}
 
       {/* Substitution popup */}
