@@ -1533,6 +1533,40 @@ function SessionTypeScreen(props){
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
 
+// ── Assist Popup ───────────────────────────────────────────────────────────────
+function AssistPopup(props){
+  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
+        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
+        <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist?</div>
+        <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Who got the assist on that basket?</div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+          {onFloorPlayers.map(function(p){
+            var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+            var col=pc(p,pIdx);
+            return (
+              <button key={p.id} onClick={function(){onAssist(p.id);}}
+                style={{height:68,borderRadius:12,border:'2.5px solid '+col,background:col+'18',
+                  color:col,fontSize:28,fontWeight:900,cursor:'pointer',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                {p.number}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={function(){onAssist(null);}}
+          style={{width:'100%',padding:'13px',borderRadius:12,border:'1px solid '+T.border,
+            background:T.card,color:T.t4,fontSize:12,cursor:'pointer',letterSpacing:1,fontWeight:600}}>
+          No Assist
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
   var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound;
@@ -1705,6 +1739,8 @@ function Tracker(props){
   var awaitCourt=awaitCourtState[0],setAwaitCourt=awaitCourtState[1];
   var awaitReboundState=useState(null);
   var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
+  var awaitAssistState=useState(false);
+  var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -1825,6 +1861,7 @@ function Tracker(props){
     vib(50);setAwaitCourt(null);setMode(null);
     clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
     if(!make&&isGame) setAwaitRebound({shooter:'home'});
+    if(make&&isGame&&!isFT) setAwaitAssist(true);
   },[awaitCourt,isGame,pDrafts,gs,players]);
 
   function recordFT(make,targetPid){
@@ -1962,6 +1999,15 @@ function Tracker(props){
       setNotice({label:(shooter==='home'?'Opp D REB':'Opp O REB'),make:false});
       clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2000);
     }
+  }
+
+  function handleAssist(playerId){
+    setAwaitAssist(false);
+    if(!playerId) return;
+    handleStat('ast',1,playerId);
+    var targetPlayer=players.find(function(p){return p.id===playerId;});
+    setNotice({label:'AST · #'+(targetPlayer?targetPlayer.number:'?'),make:true});
+    clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2000);
   }
 
   function handleUndo(){
@@ -2245,12 +2291,13 @@ function Tracker(props){
                     var totVal=getStatTotal(s.key);
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
-                        style={{flex:1,height:58,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:11,fontWeight:900,
+                        style={{flex:1,height:62,borderRadius:10,border:'1px solid '+s.color+'55',
+                          background:s.color+'18',color:s.color,fontSize:13,fontWeight:900,
                           letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
-                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-                        <div>{s.label}</div>
-                        {totVal>0&&<div style={{position:'absolute',bottom:4,right:6,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8}}>{totVal}</div>}
+                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        <div style={{fontSize:13,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
+                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -2260,12 +2307,13 @@ function Tracker(props){
                     var totVal=getStatTotal(s.key);
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
-                        style={{flex:1,height:58,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:11,fontWeight:900,
+                        style={{flex:1,height:62,borderRadius:10,border:'1px solid '+s.color+'55',
+                          background:s.color+'18',color:s.color,fontSize:13,fontWeight:900,
                           letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
-                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-                        <div>{s.label}</div>
-                        {totVal>0&&<div style={{position:'absolute',bottom:4,right:6,fontSize:14,fontWeight:900,color:T.t1,opacity:0.8}}>{totVal}</div>}
+                          position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
+                          display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        <div style={{fontSize:13,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
+                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -2319,6 +2367,13 @@ function Tracker(props){
         onPlayer={handlePlayerSelect}
         onOpponent={handleOppFromPopup}
         onCancel={function(){setPlayerPopup(null);}}
+      />}
+
+      {/* Assist popup */}
+      {awaitAssist&&isGame&&<AssistPopup
+        onFloorPlayers={sortedActive}
+        players={players}
+        onAssist={handleAssist}
       />}
 
       {/* Rebound popup */}
@@ -2499,7 +2554,7 @@ function generateReport(sessions,players,teamMeta){
       '<path d="M '+kL+' '+ftYs+' A '+ftR+' '+ftR+' 0 0 0 '+kR+' '+ftYs+'" stroke="white" stroke-width="1" fill="none"/>'+
       '<path d="M '+kL+' '+ftYs+' A '+ftR+' '+ftR+' 0 0 1 '+kR+' '+ftYs+'" stroke="white" stroke-width="1" fill="none" stroke-dasharray="4 3"/>'+
       '<circle cx="'+bxS+'" cy="'+byS+'" r="'+Math.round(11*scale)+'" fill="none" stroke="white" stroke-width="1"/>'+
-      '<path d="M '+corL+' '+basY+' A '+threeR+' '+threeR+' 0 0 1 '+corR+' '+basY+'" stroke="white" stroke-width="1" fill="none"/>'+
+      '<path d="M '+corL+' '+corArcY+' A '+threeR+' '+threeR+' 0 0 1 '+corR+' '+corArcY+'" stroke="white" stroke-width="1" fill="none"/>'+
       '<line x1="'+corL+'" y1="'+basY+'" x2="'+corL+'" y2="'+corArcY+'" stroke="white" stroke-width="1"/>'+
       '<line x1="'+corR+'" y1="'+basY+'" x2="'+corR+'" y2="'+corArcY+'" stroke="white" stroke-width="1"/>'+
       '<line x1="0" y1="'+basY+'" x2="320" y2="'+basY+'" stroke="white" stroke-width="1"/>'+
