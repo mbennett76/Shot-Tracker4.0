@@ -3187,7 +3187,9 @@ function generateReport(sessions,players,teamMeta){
     '*{box-sizing:border-box;margin:0;padding:0;font-family:Helvetica Neue,Arial,sans-serif;}'+
     'body{background:#f0f0f0;padding:20px;}'+
     '.page{width:700px;background:#fff;margin:0 auto 30px;padding:32px 36px;border-radius:8px;page-break-after:always;}'+
-    '@media print{body{background:#fff;padding:0;}.page{width:100%;box-shadow:none;border-radius:0;margin:0;padding:24px 20px;page-break-after:always;}}'+
+    '@media print{body{background:#fff;padding:0;}.page{width:100%;box-shadow:none;border-radius:0;margin:0;padding:24px 20px;page-break-after:always;}.close-btn{display:none!important;}}'+
+    '.close-btn{position:fixed;top:16px;right:16px;padding:10px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:1px;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:999;}'+
+    '.close-btn:hover{background:#2d5282;}'+
     'h1{font-size:22px;font-weight:600;text-align:center;margin-bottom:3px;color:#111;}'+
     'h2{font-size:14px;font-weight:600;color:#111;margin-bottom:10px;}'+
     'h3{font-size:11px;color:#6b7280;text-align:center;margin-bottom:18px;font-weight:400;}'+
@@ -3223,6 +3225,7 @@ function generateReport(sessions,players,teamMeta){
     '.sb-label{font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
     '.sb-val{font-size:17px;font-weight:600;color:#111;}.sb-pct{font-size:11px;color:#6b7280;}'+
   '</style></head><body>'+
+  '<button class="close-btn" onclick="window.close()">✕ Close Report</button>'+
   '<div class="page">'+
     '<h1>'+teamMeta.name+' <strong>'+gameScore.my+'</strong> &ndash; '+opp+' <strong>'+gameScore.opp+'</strong></h1>'+
     '<h3>'+gDate+' · ShotTracker 4.0</h3>'+
