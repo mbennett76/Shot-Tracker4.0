@@ -2749,25 +2749,6 @@ function Tracker(props){
                 }
               </div>
             </div>
-              <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
-                {voiceStatus==='listening'&&voiceTranscript
-                  ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
-                    "<span style={{color:T.t2,fontStyle:'normal'}}>{voiceTranscript}</span>"
-                  </div>
-                  :voiceStatus==='success'
-                  ?<div style={{color:T.green,fontSize:15,fontWeight:700,letterSpacing:1,textAlign:'center'}}>{voiceResult}</div>
-                  :voiceStatus==='error'
-                  ?<div style={{color:T.red,fontSize:15,fontWeight:700,textAlign:'center'}}>{voiceResult||'✗ Not recognised'}</div>
-                  :awaitCourt
-                  ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
-                    ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
-                  </div>
-                  :notice
-                  ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{notice.label}</div>
-                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1,textAlign:'center'}}>🎙 Voice or tap to record</div>
-                }
-              </div>
-            </div>
 
             {/* Heat map toggle */}
             {sessions.filter(function(s){return s.playerId===activePid;}).length>0&&(
