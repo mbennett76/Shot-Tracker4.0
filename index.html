@@ -2064,7 +2064,6 @@ function Tracker(props){
   var voiceResult=voiceResultState[0],setVoiceResult=voiceResultState[1];
   var voiceTmr=useRef(null);
   var recognitionRef=useRef(null);
-  var handleVoiceRef=useRef(null);
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -2353,9 +2352,6 @@ function Tracker(props){
     voiceTmr.current=setTimeout(function(){setVoiceStatus('idle');setVoiceResult('');setVoiceTranscript('');},2500);
     if(ok) vib(40);
   }
-  // Always keep ref pointing to latest handler so rec.onresult calls current version
-  handleVoiceRef.current=handleVoiceTranscript;
-
   function startVoiceRecognition(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){setVoiceStatus('unsupported');setVoiceResult('Voice not supported in this browser');return;}
@@ -2370,7 +2366,7 @@ function Tracker(props){
         else interim+=e.results[i][0].transcript;
       }
       if(interim) setVoiceTranscript(interim);
-      if(final.trim()&&handleVoiceRef.current) handleVoiceRef.current(final.trim());
+      if(final.trim()) handleVoiceTranscript(final.trim());
     };
     rec.onerror=function(e){
       if(e.error==='no-speech'){setVoiceStatus('idle');return;}
