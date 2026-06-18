@@ -2064,10 +2064,7 @@ function Tracker(props){
   var voiceResult=voiceResultState[0],setVoiceResult=voiceResultState[1];
   var voiceTmr=useRef(null);
   var recognitionRef=useRef(null);
-  var awaitReboundRef=useRef(null);
-  var awaitAssistRef=useRef(false);
-  awaitReboundRef.current=awaitRebound;
-  awaitAssistRef.current=awaitAssist;
+  var handleVoiceRef=useRef(null);
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
 
@@ -2135,8 +2132,6 @@ function Tracker(props){
   }
 
   var sortedActive=players.filter(function(p){return isChipActive(p);}).sort(function(a,b){return parseNum(a.number)-parseNum(b.number);});
-  var sortedActiveRef=useRef(sortedActive);
-  sortedActiveRef.current=sortedActive;
 
   var anyData=isGame
     ?players.some(function(p){var pd=gs.pdata[p.id];return pd&&pd.active&&hasDraftQ(pd.qs);})
@@ -2358,6 +2353,8 @@ function Tracker(props){
     voiceTmr.current=setTimeout(function(){setVoiceStatus('idle');setVoiceResult('');setVoiceTranscript('');},2500);
     if(ok) vib(40);
   }
+  // Always keep ref pointing to latest handler so rec.onresult calls current version
+  handleVoiceRef.current=handleVoiceTranscript;
 
   function startVoiceRecognition(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -2373,7 +2370,7 @@ function Tracker(props){
         else interim+=e.results[i][0].transcript;
       }
       if(interim) setVoiceTranscript(interim);
-      if(final.trim()) handleVoiceTranscript(final.trim());
+      if(final.trim()&&handleVoiceRef.current) handleVoiceRef.current(final.trim());
     };
     rec.onerror=function(e){
       if(e.error==='no-speech'){setVoiceStatus('idle');return;}
@@ -2401,18 +2398,15 @@ function Tracker(props){
     var t=text.toLowerCase();
 
     // ── Route to rebound popup if open ────────────────────────────────────
-    if(awaitReboundRef.current){
-      var curRebound=awaitReboundRef.current;
-      var curPlayers=sortedActiveRef.current;
+    if(awaitRebound){
       var noReb=/\bno rebound\b|\bno reb\b|\bnone\b|\bskip\b/.test(t);
       var oppReb=/\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);
-      // Use extractNum for word+digit number recognition (defined below, hoisted)
       var rebNum=extractNum();
-      var rebPlayer=rebNum!=null?curPlayers.find(function(p){return p.number===String(rebNum);}):null;
+      var rebPlayer=rebNum!=null?sortedActive.find(function(p){return p.number===String(rebNum);}):null;
       if(noReb){handleRebound('none',null);showVoiceFeedback('No Rebound',true);return;}
       if(oppReb){handleRebound('opponent',null);showVoiceFeedback('✓ OPP Rebound',true);return;}
       if(rebPlayer){
-        var rebStat=curRebound.shooter==='home'?'O REB':'D REB';
+        var rebStat=awaitRebound.shooter==='home'?'O REB':'D REB';
         handleRebound('home-player',rebPlayer.id);
         showVoiceFeedback('✓ '+rebStat+' · #'+rebNum,true);return;
       }
@@ -2420,11 +2414,10 @@ function Tracker(props){
     }
 
     // ── Route to assist popup if open ─────────────────────────────────────
-    if(awaitAssistRef.current){
-      var curPlayers2=sortedActiveRef.current;
+    if(awaitAssist){
       var noAst=/\bno assist\b|\bnone\b|\bskip\b/.test(t);
       var astNum=extractNum();
-      var astPlayer=astNum!=null?curPlayers2.find(function(p){return p.number===String(astNum);}):null;
+      var astPlayer=astNum!=null?sortedActive.find(function(p){return p.number===String(astNum);}):null;
       if(noAst){handleAssist(null);showVoiceFeedback('No Assist',true);return;}
       if(astPlayer){handleAssist(astPlayer.id);showVoiceFeedback('✓ AST · #'+astNum,true);return;}
       showVoiceFeedback('✗ Say a player number or "no assist"',false);return;
