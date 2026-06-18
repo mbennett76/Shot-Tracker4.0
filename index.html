@@ -1533,82 +1533,39 @@ function SessionTypeScreen(props){
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
 
-// ── Voice Input ────────────────────────────────────────────────────────────────
-function MicBtn(props){
-  var active=props.active,onTap=props.onTap,size=props.size||40;
-  return (
-    <button onClick={function(e){e.stopPropagation();onTap();}}
-      style={{width:size,height:size,borderRadius:size/2,flexShrink:0,
-        border:active?'none':'1.5px solid '+T.border,
-        background:active?T.red:T.card,color:active?'#fff':T.t3,
-        fontSize:size*0.45,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-        boxShadow:active?'0 0 0 4px rgba(220,38,38,0.25),0 2px 8px rgba(220,38,38,0.3)':T.shadow,
-        animation:active?'pulse 1.5s ease-in-out infinite':'none',
-        userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-      🎙
-    </button>
-  );
-}
 // ── Undo Popup ─────────────────────────────────────────────────────────────────
 var STAT_LABEL_TO_KEY={'O REB':'oReb','D REB':'dReb','TO':'to','AST':'ast','BLK':'blk','STL':'stl','FOUL':'foul'};
 var OPP_ELIGIBLE_STATS=['oReb','dReb','to','foul'];
 function UndoPopup(props){
-  var gs=props.gs,players=props.players,sortedActive=props.sortedActive,pNames=props.pNames;
-  var onClose=props.onClose,onApply=props.onApply;
+  var gs=props.gs,players=props.players,sortedActive=props.sortedActive,pNames=props.pNames,onClose=props.onClose,onApply=props.onApply;
   var editEntryState=useState(null);var editEntry=editEntryState[0],setEditEntry=editEntryState[1];
   var editStepState=useState(null);var editStep=editStepState[0],setEditStep=editStepState[1];
-
-  var log=gs.playLog||[];
-  var lastFour=log.slice(-4).slice().reverse();
-
-  function isShot(action){return action&&(action.startsWith('Made ')||action.startsWith('Missed '));}
-  function isFTAction(action){return action&&(action.includes('Free Throw')||action.includes('FT'));}
-  function getStatKey(action){return STAT_LABEL_TO_KEY[action]||null;}
-
-  function findPid(playerNum){
-    var p=players.find(function(p){return p.number===playerNum;});
-    return p?p.id:null;
-  }
-
+  var log=gs.playLog||[];var lastFour=log.slice(-4).slice().reverse();
+  function isShot(a){return a&&(a.startsWith('Made ')||a.startsWith('Missed '));}
+  function isFTAction(a){return a&&(a.includes('Free Throw')||a.includes('FT'));}
+  function getStatKey(a){return STAT_LABEL_TO_KEY[a]||null;}
+  function findPid(num){var p=players.find(function(pl){return pl.number===num;});return p?p.id:null;}
   function reverseEntry(g,entry){
     var qIdx=(entry.q||1)-1;
     if(entry.team==='home'){
-      var pid=findPid(entry.player);
-      if(!pid||!g.pdata[pid]) return g;
+      var pid=findPid(entry.player);if(!pid||!g.pdata[pid]) return g;
       if(isShot(entry.action)){
-        var make=entry.action.startsWith('Made');
-        var isFT=isFTAction(entry.action);
+        var make=entry.action.startsWith('Made');var isFT=isFTAction(entry.action);
         var sType=entry.action.replace('Made ','').replace('Missed ','');
         var newQs=g.pdata[pid].qs.map(function(qd,i){
           if(i!==qIdx) return qd;
-          if(isFT){
-            var shots=qd.ftShots||[];
-            var ridx=-1;
-            for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make){ridx=j;break;}}
-            return ridx>=0?Object.assign({},qd,{ftShots:shots.filter(function(_,k){return k!==ridx;})}):qd;
-          } else {
-            var shots=qd.shots||[];
-            var ridx=-1;
-            for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make&&shots[j].type===sType){ridx=j;break;}}
-            return ridx>=0?Object.assign({},qd,{shots:shots.filter(function(_,k){return k!==ridx;})}):qd;
-          }
+          if(isFT){var sh=qd.ftShots||[];var ri=-1;for(var j=sh.length-1;j>=0;j--){if(sh[j].make===make){ri=j;break;}}return ri>=0?Object.assign({},qd,{ftShots:sh.filter(function(_,k){return k!==ri;})}):qd;}
+          var sh=qd.shots||[];var ri=-1;for(var j=sh.length-1;j>=0;j--){if(sh[j].make===make&&sh[j].type===sType){ri=j;break;}}
+          return ri>=0?Object.assign({},qd,{shots:sh.filter(function(_,k){return k!==ri;})}):qd;
         });
-        var newPdata=Object.assign({},g.pdata);
-        newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
-        return Object.assign({},g,{pdata:newPdata});
+        var np=Object.assign({},g.pdata);np[pid]=Object.assign({},g.pdata[pid],{qs:newQs});return Object.assign({},g,{pdata:np});
       } else {
-        var sk=getStatKey(entry.action);
-        if(!sk) return g;
-        var newQs=g.pdata[pid].qs.map(function(qd,i){
-          return i===qIdx?Object.assign({},qd,{[sk]:Math.max(0,(qd[sk]||0)-1)}):qd;
-        });
-        var newPdata=Object.assign({},g.pdata);
-        newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
-        return Object.assign({},g,{pdata:newPdata});
+        var sk=getStatKey(entry.action);if(!sk) return g;
+        var newQs=g.pdata[pid].qs.map(function(qd,i){return i===qIdx?Object.assign({},qd,{[sk]:Math.max(0,(qd[sk]||0)-1)}):qd;});
+        var np=Object.assign({},g.pdata);np[pid]=Object.assign({},g.pdata[pid],{qs:newQs});return Object.assign({},g,{pdata:np});
       }
     } else {
-      var make=entry.action.startsWith('Made');
-      var label=entry.action.replace('Made ','').replace('Missed ','');
+      var make=entry.action.startsWith('Made');var label=entry.action.replace('Made ','').replace('Missed ','');
       var newOppQs=(g.oppQs||[]).map(function(qd,i){
         if(i!==qIdx) return qd;
         if(label==='3PT') return Object.assign({},qd,{fg3a:Math.max(0,(qd.fg3a||0)-1),fg3m:make?Math.max(0,(qd.fg3m||0)-1):(qd.fg3m||0)});
@@ -1618,239 +1575,90 @@ function UndoPopup(props){
       return Object.assign({},g,{oppQs:newOppQs});
     }
   }
-
-  function applyHomeStat(g,sk,qIdx,pid){
-    var newQs=g.pdata[pid].qs.map(function(qd,i){
-      return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;
-    });
-    var newPdata=Object.assign({},g.pdata);
-    newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
-    return Object.assign({},g,{pdata:newPdata});
-  }
-
-  function applyHomeShot(g,entry,qIdx,newPid){
-    // Move shot object from old player to new player
-    var oldPid=findPid(entry.player);
-    var make=entry.action.startsWith('Made');
-    var isFT=isFTAction(entry.action);
-    var sType=entry.action.replace('Made ','').replace('Missed ','');
-    var shotObj=null;
-    // Find and remove from old player
-    var newQsOld=g.pdata[oldPid].qs.map(function(qd,i){
-      if(i!==qIdx) return qd;
-      if(isFT){
-        var shots=qd.ftShots||[];
-        var ridx=-1;
-        for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make){ridx=j;break;}}
-        if(ridx>=0){shotObj=shots[ridx];return Object.assign({},qd,{ftShots:shots.filter(function(_,k){return k!==ridx;})});}
-      } else {
-        var shots=qd.shots||[];
-        var ridx=-1;
-        for(var j=shots.length-1;j>=0;j--){if(shots[j].make===make&&shots[j].type===sType){ridx=j;break;}}
-        if(ridx>=0){shotObj=shots[ridx];return Object.assign({},qd,{shots:shots.filter(function(_,k){return k!==ridx;})});}
-      }
-      return qd;
-    });
-    var newPdata=Object.assign({},g.pdata);
-    newPdata[oldPid]=Object.assign({},g.pdata[oldPid],{qs:newQsOld});
-    // Add to new player
-    if(shotObj&&newPdata[newPid]){
-      var newQsNew=newPdata[newPid].qs.map(function(qd,i){
-        if(i!==qIdx) return qd;
-        if(isFT) return Object.assign({},qd,{ftShots:(qd.ftShots||[]).concat([shotObj])});
-        return Object.assign({},qd,{shots:(qd.shots||[]).concat([shotObj])});
-      });
-      newPdata[newPid]=Object.assign({},newPdata[newPid],{qs:newQsNew});
-    }
-    return Object.assign({},g,{pdata:newPdata});
-  }
-
-  function applyOppStat(g,sk,qIdx){
-    var newOppQs=(g.oppQs||[]).map(function(qd,i){
-      return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;
-    });
-    return Object.assign({},g,{oppQs:newOppQs});
-  }
-
-  function doDelete(){
-    var entry=editEntry;
-    var newG=reverseEntry(gs,entry);
-    newG=Object.assign({},newG,{playLog:(newG.playLog||[]).filter(function(e){return e.id!==entry.id;})});
-    onApply(newG);
-    setEditEntry(null);setEditStep(null);
-  }
-
-  function doChangePlayer(newPid){
-    var entry=editEntry;
-    var qIdx=(entry.q||1)-1;
-    var sk=getStatKey(entry.action);
-    var newEntry=Object.assign({},entry);
-    var newG=gs;
-    if(sk){
-      newG=reverseEntry(gs,entry);
-      newG=applyHomeStat(newG,sk,qIdx,newPid);
-      var newPlayer=players.find(function(p){return p.id===newPid;});
-      newEntry=Object.assign({},newEntry,{player:newPlayer?newPlayer.number:entry.player});
-    } else if(isShot(entry.action)){
-      newG=applyHomeShot(gs,entry,qIdx,newPid);
-      var newPlayer=players.find(function(p){return p.id===newPid;});
-      newEntry=Object.assign({},newEntry,{player:newPlayer?newPlayer.number:entry.player});
-    }
-    var newLog=(newG.playLog||[]).map(function(e){return e.id===entry.id?newEntry:e;});
-    newG=Object.assign({},newG,{playLog:newLog});
-    onApply(newG);setEditEntry(null);setEditStep(null);
-  }
-
-  function doChangeToOpp(){
-    var entry=editEntry;
-    var qIdx=(entry.q||1)-1;
-    var sk=getStatKey(entry.action);
-    if(!sk) return;
-    var newG=reverseEntry(gs,entry);
-    newG=applyOppStat(newG,sk,qIdx);
-    var newEntry=Object.assign({},entry,{team:'opp',player:'Opponent'});
-    var newLog=(newG.playLog||[]).map(function(e){return e.id===entry.id?newEntry:e;});
-    newG=Object.assign({},newG,{playLog:newLog});
-    onApply(newG);setEditEntry(null);setEditStep(null);
-  }
-
-  function doChangeStat(newSk){
-    var entry=editEntry;
-    var qIdx=(entry.q||1)-1;
-    var pid=findPid(entry.player);
-    if(!pid) return;
-    var newG=reverseEntry(gs,entry);
-    newG=applyHomeStat(newG,newSk,qIdx,pid);
-    var newLabel=GSTATS.find(function(g){return g.key===newSk;})||{label:newSk};
-    var newEntry=Object.assign({},entry,{action:newLabel.label});
-    var newLog=(newG.playLog||[]).map(function(e){return e.id===entry.id?newEntry:e;});
-    newG=Object.assign({},newG,{playLog:newLog});
-    onApply(newG);setEditEntry(null);setEditStep(null);
-  }
-
-  function entryDisplay(entry){
-    var pLabel=entry.team==='opp'?'OPP':'#'+entry.player;
-    var pName=pNames?pNames[(entry.q||1)-1]:'Q'+(entry.q||1);
-    return pLabel+' · '+entry.action+' · '+pName;
-  }
-
+  function applyHomeStat(g,sk,qIdx,pid){var nq=g.pdata[pid].qs.map(function(qd,i){return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;});var np=Object.assign({},g.pdata);np[pid]=Object.assign({},g.pdata[pid],{qs:nq});return Object.assign({},g,{pdata:np});}
+  function applyOppStat(g,sk,qIdx){var nq=(g.oppQs||[]).map(function(qd,i){return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;});return Object.assign({},g,{oppQs:nq});}
+  function doDelete(){var e=editEntry;var ng=reverseEntry(gs,e);ng=Object.assign({},ng,{playLog:(ng.playLog||[]).filter(function(x){return x.id!==e.id;})});onApply(ng);setEditEntry(null);setEditStep(null);}
+  function doChangePlayer(newPid){var e=editEntry;var qIdx=(e.q||1)-1;var sk=getStatKey(e.action);var ng=gs;var ne=Object.assign({},e);if(sk){ng=reverseEntry(gs,e);ng=applyHomeStat(ng,sk,qIdx,newPid);var np=players.find(function(p){return p.id===newPid;});ne=Object.assign({},ne,{player:np?np.number:e.player});}var nl=(ng.playLog||[]).map(function(x){return x.id===e.id?ne:x;});ng=Object.assign({},ng,{playLog:nl});onApply(ng);setEditEntry(null);setEditStep(null);}
+  function doChangeToOpp(){var e=editEntry;var qIdx=(e.q||1)-1;var sk=getStatKey(e.action);if(!sk) return;var ng=reverseEntry(gs,e);ng=applyOppStat(ng,sk,qIdx);var ne=Object.assign({},e,{team:'opp',player:'Opponent'});var nl=(ng.playLog||[]).map(function(x){return x.id===e.id?ne:x;});ng=Object.assign({},ng,{playLog:nl});onApply(ng);setEditEntry(null);setEditStep(null);}
+  function doChangeStat(newSk){var e=editEntry;var qIdx=(e.q||1)-1;var pid=findPid(e.player);if(!pid) return;var ng=reverseEntry(gs,e);ng=applyHomeStat(ng,newSk,qIdx,pid);var nl2=GSTATS.find(function(g){return g.key===newSk;})||{label:newSk};var ne=Object.assign({},e,{action:nl2.label});var nl=(ng.playLog||[]).map(function(x){return x.id===e.id?ne:x;});ng=Object.assign({},ng,{playLog:nl});onApply(ng);setEditEntry(null);setEditStep(null);}
   var iS={width:'100%',boxSizing:'border-box',padding:'13px 14px',borderRadius:10,border:'1px solid '+T.border,background:T.bg,color:T.t1,fontSize:13,display:'flex',alignItems:'center',gap:10,cursor:'pointer',marginBottom:6,textAlign:'left',userSelect:'none',WebkitUserSelect:'none'};
-
   return (
-    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={function(){if(!editStep){onClose();}}} >
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={function(){if(!editStep) onClose();}}>
       <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd,maxHeight:'80vh',overflowY:'auto'}} onClick={function(e){e.stopPropagation();}}>
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 16px'}}/>
-
-        {/* STEP: list */}
-        {!editEntry&&(
-          <React.Fragment>
-            <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Edit Recent Actions</div>
-            <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Tap an action to edit or delete it</div>
-            {lastFour.length===0&&<div style={{textAlign:'center',padding:'24px',color:T.t4,fontSize:12}}>No actions recorded yet.</div>}
-            {lastFour.map(function(entry){
-              var isOpp=entry.team==='opp';
-              var pLabel=isOpp?'OPP':'#'+entry.player;
-              var pName=pNames[(entry.q||1)-1]||('Q'+(entry.q||1));
-              var entryColor=isOpp?T.red:T.accent;
-              return (
-                <button key={entry.id} onClick={function(){setEditEntry(entry);setEditStep('options');}} style={Object.assign({},iS,{border:'1px solid '+entryColor+'44',background:entryColor+'08'})}>
-                  <div style={{width:36,height:36,borderRadius:8,background:entryColor+'18',border:'1px solid '+entryColor+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:entryColor,flexShrink:0}}>{pLabel}</div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:T.t1}}>{entry.action}</div>
-                    <div style={{fontSize:10,color:T.t4,marginTop:2}}>{pName}</div>
-                  </div>
-                  <div style={{fontSize:16,color:T.t4}}>›</div>
-                </button>
-              );
-            })}
-            <button onClick={onClose} style={{width:'100%',padding:'12px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t4,fontSize:12,cursor:'pointer',marginTop:4}}>Close</button>
-          </React.Fragment>
-        )}
-
-        {/* STEP: options */}
-        {editEntry&&editStep==='options'&&(
-          <React.Fragment>
-            <button onClick={function(){setEditEntry(null);setEditStep(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
-            <div style={{background:T.bg,borderRadius:12,padding:'12px 14px',border:'1px solid '+T.border,marginBottom:16}}>
-              <div style={{fontSize:11,color:T.t4,marginBottom:3,letterSpacing:1}}>Selected action</div>
-              <div style={{fontSize:14,fontWeight:700,color:T.t1}}>{entryDisplay(editEntry)}</div>
+        {!editEntry&&(<React.Fragment>
+          <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Edit Recent Actions</div>
+          <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>Tap an action to edit or delete it</div>
+          {lastFour.length===0&&<div style={{textAlign:'center',padding:'24px',color:T.t4,fontSize:12}}>No actions recorded yet.</div>}
+          {lastFour.map(function(entry){
+            var isOpp=entry.team==='opp';var pLabel=isOpp?'OPP':'#'+entry.player;
+            var pName=pNames[(entry.q||1)-1]||('Q'+(entry.q||1));var eColor=isOpp?T.red:T.accent;
+            return (<button key={entry.id} onClick={function(){setEditEntry(entry);setEditStep('options');}} style={Object.assign({},iS,{border:'1px solid '+eColor+'44',background:eColor+'08'})}>
+              <div style={{width:36,height:36,borderRadius:8,background:eColor+'18',border:'1px solid '+eColor+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:900,color:eColor,flexShrink:0}}>{pLabel}</div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.t1}}>{entry.action}</div><div style={{fontSize:10,color:T.t4,marginTop:2}}>{pName}</div></div>
+              <div style={{fontSize:16,color:T.t4}}>›</div>
+            </button>);
+          })}
+          <button onClick={onClose} style={{width:'100%',padding:'12px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t4,fontSize:12,cursor:'pointer',marginTop:4}}>Close</button>
+        </React.Fragment>)}
+        {editEntry&&editStep==='options'&&(<React.Fragment>
+          <button onClick={function(){setEditEntry(null);setEditStep(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+          <div style={{background:T.bg,borderRadius:12,padding:'12px 14px',border:'1px solid '+T.border,marginBottom:16}}><div style={{fontSize:11,color:T.t4,marginBottom:3}}>Selected action</div><div style={{fontSize:14,fontWeight:700,color:T.t1}}>{editEntry.team==='opp'?'OPP':'#'+editEntry.player} · {editEntry.action} · {pNames[(editEntry.q||1)-1]}</div></div>
+          {editEntry.team==='home'&&<button onClick={function(){setEditStep('editPlayer');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:8,textAlign:'left'}}>👤 Edit Player — move to a different player</button>}
+          <button onClick={function(){setEditStep('editStat');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left'}}>📝 Edit Stat — delete or change stat type</button>
+        </React.Fragment>)}
+        {editEntry&&editStep==='editPlayer'&&(<React.Fragment>
+          <button onClick={function(){setEditStep('options');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+          <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Move to which player?</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+            {sortedActive.filter(function(p){return p.number!==editEntry.player;}).map(function(p){var pIdx=players.findIndex(function(pl){return pl.id===p.id;});var col=pc(p,pIdx);return (<button key={p.id} onClick={function(){doChangePlayer(p.id);}} style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',color:col,fontSize:26,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>{p.number}</button>);})}
+          </div>
+          {getStatKey(editEntry.action)&&OPP_ELIGIBLE_STATS.indexOf(getStatKey(editEntry.action))>-1&&<button onClick={doChangeToOpp} style={{width:'100%',padding:'13px',borderRadius:12,border:'2px solid '+T.t4,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,cursor:'pointer',textTransform:'uppercase',letterSpacing:2,marginBottom:8}}>🆚 Opponent</button>}
+        </React.Fragment>)}
+        {editEntry&&editStep==='editStat'&&(<React.Fragment>
+          <button onClick={function(){setEditStep('options');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+          <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Edit Stat</div>
+          <button onClick={doDelete} style={{width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.red,color:'#fff',fontSize:14,fontWeight:900,cursor:'pointer',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>🗑 Delete This Entry</button>
+          {editEntry.team==='home'&&getStatKey(editEntry.action)&&(<React.Fragment>
+            <div style={{fontSize:10,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:8,fontWeight:700}}>Or change to</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+              {GSTATS.filter(function(g){return g.key!==getStatKey(editEntry.action);}).map(function(g){return (<button key={g.key} onClick={function(){doChangeStat(g.key);}} style={{padding:'12px',borderRadius:10,border:'1px solid '+g.color+'55',background:g.color+'18',color:g.color,fontSize:13,fontWeight:900,cursor:'pointer',textTransform:'uppercase',letterSpacing:1}}>{g.label}</button>);})}
             </div>
-            {editEntry.team==='home'&&(
-              <button onClick={function(){setEditStep('editPlayer');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:8,textAlign:'left',letterSpacing:1}}>
-                👤 Edit Player — move to a different player
-              </button>
-            )}
-            <button onClick={function(){setEditStep('editStat');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',letterSpacing:1}}>
-              📝 Edit Stat — delete or change stat type
-            </button>
-          </React.Fragment>
-        )}
-
-        {/* STEP: edit player */}
-        {editEntry&&editStep==='editPlayer'&&(
-          <React.Fragment>
-            <button onClick={function(){setEditStep('options');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
-            <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Move to which player?</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
-              {sortedActive.filter(function(p){return p.number!==editEntry.player;}).map(function(p){
-                var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
-                var col=pc(p,pIdx);
-                return (
-                  <button key={p.id} onClick={function(){doChangePlayer(p.id);}}
-                    style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',color:col,fontSize:26,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                    {p.number}
-                  </button>
-                );
-              })}
-            </div>
-            {getStatKey(editEntry.action)&&OPP_ELIGIBLE_STATS.indexOf(getStatKey(editEntry.action))>-1&&(
-              <button onClick={doChangeToOpp} style={{width:'100%',padding:'13px',borderRadius:12,border:'2px solid '+T.t4,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,cursor:'pointer',textTransform:'uppercase',letterSpacing:2,marginBottom:8}}>🆚 Opponent</button>
-            )}
-          </React.Fragment>
-        )}
-
-        {/* STEP: edit stat */}
-        {editEntry&&editStep==='editStat'&&(
-          <React.Fragment>
-            <button onClick={function(){setEditStep('options');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
-            <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Edit Stat</div>
-            <button onClick={doDelete} style={{width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.red,color:'#fff',fontSize:14,fontWeight:900,cursor:'pointer',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>🗑 Delete This Entry</button>
-            {editEntry.team==='home'&&getStatKey(editEntry.action)&&(
-              <React.Fragment>
-                <div style={{fontSize:10,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:8,fontWeight:700}}>Or change to</div>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
-                  {GSTATS.filter(function(g){return g.key!==getStatKey(editEntry.action);}).map(function(g){
-                    return (
-                      <button key={g.key} onClick={function(){doChangeStat(g.key);}}
-                        style={{padding:'12px',borderRadius:10,border:'1px solid '+g.color+'55',background:g.color+'18',color:g.color,fontSize:13,fontWeight:900,cursor:'pointer',textTransform:'uppercase',letterSpacing:1}}>
-                        {g.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </React.Fragment>
-            )}
-          </React.Fragment>
-        )}
-
+          </React.Fragment>)}
+        </React.Fragment>)}
       </div>
     </div>
+  );
+}
+
+// ── Mic Button ─────────────────────────────────────────────────────────────────
+function MicBtn(props){
+  var active=props.active,onTap=props.onTap,size=props.size||40;
+  return (
+    <button onClick={function(e){e.stopPropagation();onTap();}}
+      style={{width:size,height:size,borderRadius:size/2,flexShrink:0,
+        border:active?'none':'1.5px solid '+T.border,
+        background:active?T.red:T.card,color:active?'#fff':T.t3,
+        fontSize:size*0.45,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+        boxShadow:active?'0 0 0 4px rgba(220,38,38,0.25)':T.shadow,
+        animation:active?'pulse 1.5s ease-in-out infinite':'none',
+        userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+      🎙
+    </button>
   );
 }
 
 // ── Assist Popup ───────────────────────────────────────────────────────────────
 function AssistPopup(props){
   var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist,voiceBar=props.voiceBar,onMicTap=props.onMicTap;
-  useEffect(function(){
-    if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();
-  },[]);
+  useEffect(function(){if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();},[]);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist?</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:12,letterSpacing:1}}>Who got the assist on that basket?</div>
-        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic — say a number or "no assist"</span>}</div></div>}
+        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic or say a number</span>}</div></div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {onFloorPlayers.map(function(p){
             var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
@@ -1880,9 +1688,7 @@ function AssistPopup(props){
 function ReboundPopup(props){
   var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound,voiceBar=props.voiceBar,onMicTap=props.onMicTap;
   var isOppShot=shooter==='opp';
-  useEffect(function(){
-    if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();
-  },[]);
+  useEffect(function(){if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();},[]);
   var title=isOppShot?'Opponent missed — who rebounded?':'Home missed — who rebounded?';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
@@ -1890,7 +1696,7 @@ function ReboundPopup(props){
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Rebound</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>{title}</div>
-        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'✗ Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic — say number, "opponent", or "no rebound"</span>}</div></div>}
+        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15}}>{voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic to record rebound</span>}</div></div>}
         {onFloorPlayers.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No players on floor.</div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
           {onFloorPlayers.map(function(p){
@@ -2054,6 +1860,9 @@ function Tracker(props){
   var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
   var awaitAssistState=useState(false);
   var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
+  var showSubState=useState(false);
+  var showSub=showSubState[0],setShowSub=showSubState[1];
+
   var showUndoPopupState=useState(false);
   var showUndoPopup=showUndoPopupState[0],setShowUndoPopup=showUndoPopupState[1];
   var voiceTranscriptState=useState('');
@@ -2064,9 +1873,6 @@ function Tracker(props){
   var voiceResult=voiceResultState[0],setVoiceResult=voiceResultState[1];
   var voiceTmr=useRef(null);
   var recognitionRef=useRef(null);
-  var showSubState=useState(false);
-  var showSub=showSubState[0],setShowSub=showSubState[1];
-
   var ntR=useRef(null);
 
   function makeInitGS(){
@@ -2334,13 +2140,11 @@ function Tracker(props){
   }
 
   function handleUndo(){
-    if(isGame){
-      setShowUndoPopup(true);
-    } else {
+    if(isGame) setShowUndoPopup(true);
+    else{
       var pDraft=pDrafts[activePid]||{shots:[],ftShots:[]};
       var sh=pDraft.shots||[],ft=pDraft.ftShots||[];
-      var lG=sh.length>0?sh[sh.length-1].id:-1;
-      var lF=ft.length>0?ft[ft.length-1].id:-1;
+      var lG=sh.length>0?sh[sh.length-1].id:-1,lF=ft.length>0?ft[ft.length-1].id:-1;
       if(lF>lG) setPDrafts(function(p){return Object.assign({},p,{[activePid]:Object.assign({},pDraft,{ftShots:ft.slice(0,-1)})});});
       else if(lG>-1) setPDrafts(function(p){return Object.assign({},p,{[activePid]:Object.assign({},pDraft,{shots:sh.slice(0,-1)})});});
     }
@@ -2352,10 +2156,11 @@ function Tracker(props){
     voiceTmr.current=setTimeout(function(){setVoiceStatus('idle');setVoiceResult('');setVoiceTranscript('');},2500);
     if(ok) vib(40);
   }
+
   function startVoiceRecognition(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){setVoiceStatus('unsupported');setVoiceResult('Voice not supported in this browser');return;}
-    if(recognitionRef.current) return; // already running
+    if(!SR){setVoiceStatus('error');setVoiceResult('Voice not supported');return;}
+    if(recognitionRef.current) return;
     var rec=new SR();
     rec.continuous=false;rec.interimResults=true;rec.lang='en-US';rec.maxAlternatives=1;
     rec.onstart=function(){setVoiceStatus('listening');};
@@ -2370,13 +2175,13 @@ function Tracker(props){
     };
     rec.onerror=function(e){
       if(e.error==='no-speech'){setVoiceStatus('idle');return;}
-      if(e.error==='not-allowed'){setVoiceStatus('error');setVoiceResult('✗ Mic blocked — check Settings → Safari → Microphone');return;}
       if(e.error==='aborted') return;
       setVoiceStatus('error');
+      if(e.error==='not-allowed') setVoiceResult('Mic blocked — check Safari settings');
     };
-    rec.onend=function(){recognitionRef.current=null;if(voiceStatus!=='success'&&voiceStatus!=='error') setVoiceStatus('idle');};
+    rec.onend=function(){recognitionRef.current=null;setVoiceStatus('idle');};
     recognitionRef.current=rec;
-    try{rec.start();}catch(e){recognitionRef.current=null;setVoiceStatus('error');}
+    try{rec.start();}catch(e){recognitionRef.current=null;}
   }
 
   function stopVoiceRecognition(){
@@ -2385,161 +2190,45 @@ function Tracker(props){
   }
 
   function toggleVoice(){
-    if(voiceStatus==='listening') stopVoiceRecognition();
-    else startVoiceRecognition();
+    if(voiceStatus==='listening') stopVoiceRecognition(); else startVoiceRecognition();
   }
 
   function handleVoiceTranscript(text){
     setVoiceTranscript(text);
     var t=text.toLowerCase();
-
-    // ── Route to rebound popup if open ────────────────────────────────────
+    function wtn(w){var m={'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19,'twenty':20,'thirty':30,'forty':40,'fifty':50};var cp=w.match(/^(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)$/);if(cp) return ({twenty:20,thirty:30,forty:40,fifty:50}[cp[1]])+({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9}[cp[2]]);return m[w]!=null?m[w]:null;}
+    function extractNum(){var m=t.match(/number\s+(\d{1,2})/);if(m) return parseInt(m[1]);var d=t.match(/\b(\d{1,2})\b/g);if(d) return parseInt(d[0]);var cp=t.match(/\b(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/);if(cp) return wtn(cp[1]+' '+cp[2]);var isSh=/\bmade\b|\bmissed\b|\bshot\b/.test(t);var sg={zero:0,one:1,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50};if(!isSh){sg.two=2;sg.three=3;}for(var w in sg){if(new RegExp('\\b'+w+'\\b').test(t)) return sg[w];}return null;}
+    function isOv(){return /\bopponent\b|\bopp\b|\btheir\b/.test(t);}
+    function isSh(){return /\bmade\b|\bmissed\b/.test(t);}
+    function getMk(){return /\bmade\b/.test(t);}
+    function getST(){if(/\bfree throw\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';if(/\bthree\b|\b3pt\b/.test(t)) return '3PT';return '2PT';}
+    function getStat(){if(/\bfoul\b/.test(t)) return 'foul';if(/\bturnover\b/.test(t)) return 'to';if(/\bassist\b/.test(t)) return 'ast';if(/\bsteal\b/.test(t)) return 'stl';if(/\bblock\b/.test(t)) return 'blk';if(/\boffensive rebound\b|\bo reb\b/.test(t)) return 'oReb';if(/\bdefensive rebound\b|\bd reb\b/.test(t)) return 'dReb';if(/\brebound\b|\bboard\b/.test(t)) return 'dReb';return null;}
     if(awaitRebound){
-      var noReb=/\bno rebound\b|\bno reb\b|\bnone\b|\bskip\b/.test(t);
-      var oppReb=/\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);
-      var rebNum=extractNum();
-      var rebPlayer=rebNum!=null?sortedActive.find(function(p){return p.number===String(rebNum);}):null;
-      if(noReb){handleRebound('none',null);showVoiceFeedback('No Rebound',true);return;}
-      if(oppReb){handleRebound('opponent',null);showVoiceFeedback('✓ OPP Rebound',true);return;}
-      if(rebPlayer){
-        var rebStat=awaitRebound.shooter==='home'?'O REB':'D REB';
-        handleRebound('home-player',rebPlayer.id);
-        showVoiceFeedback('✓ '+rebStat+' · #'+rebNum,true);return;
-      }
-      showVoiceFeedback('✗ Say a number, "opponent", or "no rebound"',false);return;
+      var nb=/\bno rebound\b|\bnone\b|\bskip\b/.test(t),ob=isOv(),rn=extractNum(),rp=rn!=null?sortedActive.find(function(p){return p.number===String(rn);}):null;
+      if(nb){handleRebound('none',null);showVoiceFeedback('No Rebound',true);return;}
+      if(ob){handleRebound('opponent',null);showVoiceFeedback('OPP Rebound',true);return;}
+      if(rp){handleRebound('home-player',rp.id);showVoiceFeedback((awaitRebound.shooter==='home'?'O REB':'D REB')+' #'+rn,true);return;}
+      showVoiceFeedback('Say a number or opponent',false);return;
     }
-
-    // ── Route to assist popup if open ─────────────────────────────────────
     if(awaitAssist){
-      var noAst=/\bno assist\b|\bnone\b|\bskip\b/.test(t);
-      var astNum=extractNum();
-      var astPlayer=astNum!=null?sortedActive.find(function(p){return p.number===String(astNum);}):null;
-      if(noAst){handleAssist(null);showVoiceFeedback('No Assist',true);return;}
-      if(astPlayer){handleAssist(astPlayer.id);showVoiceFeedback('✓ AST · #'+astNum,true);return;}
-      showVoiceFeedback('✗ Say a player number or "no assist"',false);return;
+      var na=/\bno assist\b|\bnone\b|\bskip\b/.test(t),an=extractNum(),ap=an!=null?sortedActive.find(function(p){return p.number===String(an);}):null;
+      if(na){handleAssist(null);showVoiceFeedback('No Assist',true);return;}
+      if(ap){handleAssist(ap.id);showVoiceFeedback('AST #'+an,true);return;}
+      showVoiceFeedback('Say a player number',false);return;
     }
-
-    // ── Number extraction ──────────────────────────────────────────────────
-    function wordToNum(w){
-      var map={'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,
-        'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,
-        'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19,
-        'twenty':20,'thirty':30,'forty':40,'fifty':50};
-      var comp=w.match(/^(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)$/);
-      if(comp) return ({twenty:20,thirty:30,forty:40,fifty:50}[comp[1]])+({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9}[comp[2]]);
-      return map[w]!=null?map[w]:null;
-    }
-    function extractNum(){
-      // "number X" pattern — digit or word
-      var m=t.match(/number\s+(\d{1,2})/);if(m) return parseInt(m[1]);
-      var mw=t.match(/number\s+((?:twenty|thirty|forty|fifty)(?:\s+(?:one|two|three|four|five|six|seven|eight|nine))?|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen)/);
-      if(mw) return wordToNum(mw[1]);
-      // Bare digits
-      var digits=t.match(/\b(\d{1,2})\b/g);if(digits) return parseInt(digits[0]);
-      // Composite number words: "twenty three"
-      var comp=t.match(/\b(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/);
-      if(comp) return wordToNum(comp[1]+' '+comp[2]);
-      // Single word numbers (excluding two/three which may mean shot type)
-      var isShotCtx=/\bmade\b|\bmissed\b|\bshot\b/.test(t);
-      var singles={zero:0,one:1,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,
-        thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50};
-      if(!isShotCtx){singles.two=2;singles.three=3;}
-      for(var w in singles){if(new RegExp('\\b'+w+'\\b').test(t)) return singles[w];}
-      return null;
-    }
-
-    // ── Keyword detection ──────────────────────────────────────────────────
-    function isShotCmd(){return /\bmade\b|\bmake\b|\bscored?\b|\bmissed?\b|\bno good\b/.test(t);}
-    function getMake(){return /\bmade\b|\bmake\b|\bscored?\b/.test(t);}
-    function getShotType(){
-      if(/\bfree throw\b|\bfree throws\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';
-      if(/\bthree\b|\b3pt\b|\bthree.pointer\b|\bthree pointer\b/.test(t)) return '3PT';
-      return '2PT';
-    }
-    function isOpp(){return /\bopponent\b|\bopp\b|\btheir\b|\bother team\b/.test(t);}
-    function getStat(){
-      if(/\bfoul\b|\bfouled\b/.test(t)) return 'foul';
-      if(/\bturnover\b|\bturned over\b/.test(t)) return 'to';
-      if(/\bassist\b|\bassed\b/.test(t)) return 'ast';
-      if(/\bsteal\b|\bstole\b/.test(t)) return 'stl';
-      if(/\bblock\b|\bblocked\b/.test(t)) return 'blk';
-      if(/\boffensive rebound\b|\bo reb\b|\bo-reb\b|\boffensive board\b/.test(t)) return 'oReb';
-      if(/\bdefensive rebound\b|\bd reb\b|\bd-reb\b|\bdefensive board\b/.test(t)) return 'dReb';
-      if(/\brebound\b|\bboard\b/.test(t)) return 'dReb'; // default rebound = dReb
-      return null;
-    }
-
-    // ── Execute ────────────────────────────────────────────────────────────
-    var oppCmd=isOpp();
-    var num=extractNum();
-    var stat=getStat();
-    var shotCmd=isShotCmd();
-
-    // Find player on floor by number
-    var onFloor=sortedActive;
-    var pid=num!=null?onFloor.reduce(function(found,p){return (!found&&p.number===String(num))?p:found;},null):null;
-    if(!pid&&num!=null) pid=players.reduce(function(found,p){return (!found&&p.number===String(num))?p:found;},null);
-    var pidId=pid?pid.id:null;
-
-    if(oppCmd){
-      if(shotCmd){
-        // Opponent shot
-        var make=getMake();var st=getShotType();
-        var q=gs.q;
-        var label=st;var pts=make?(st==='3PT'?3:st==='FT'?1:2):0;
-        var entry={id:Date.now(),q:q,team:'opp',player:'Opponent',action:(make?'Made ':'Missed ')+label,pts:pts,ts:new Date().toISOString()};
-        setGs(function(g){
-          var newQs=(g.oppQs||[]).map(function(qd,i){
-            if(i!==q-1) return qd;
-            if(st==='3PT') return Object.assign({},qd,{fg3m:make?(qd.fg3m||0)+1:(qd.fg3m||0),fg3a:(qd.fg3a||0)+1});
-            if(st==='FT') return Object.assign({},qd,{ftm:make?(qd.ftm||0)+1:(qd.ftm||0),fta:(qd.fta||0)+1});
-            return Object.assign({},qd,{fg2m:make?(qd.fg2m||0)+1:(qd.fg2m||0),fg2a:(qd.fg2a||0)+1});
-          });
-          return Object.assign({},g,{oppQs:newQs,playLog:(g.playLog||[]).concat([entry])});
-        });
-        showVoiceFeedback('✓ OPP '+(make?'Made':'Missed')+' '+st,true);
-      } else if(stat){
-        // Opponent stat
-        handleOppStat(gs.q,stat,1);
-        var lbl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};
-        showVoiceFeedback('✓ OPP '+lbl.label,true);
-      } else {showVoiceFeedback('✗ Not recognised',false);}
+    var ov=isOv(),num=extractNum(),stat=getStat(),sh=isSh();
+    var pp=num!=null?sortedActive.find(function(p){return p.number===String(num);}):null,pid=pp?pp.id:null;
+    if(ov){
+      if(sh){var mk=getMk(),st=getST(),q=gs.q,pts=mk?(st==='3PT'?3:st==='FT'?1:2):0;var ent={id:Date.now(),q:q,team:'opp',player:'Opponent',action:(mk?'Made ':'Missed ')+st,pts:pts,ts:new Date().toISOString()};setGs(function(g){var nq=(g.oppQs||[]).map(function(qd,i){if(i!==q-1) return qd;if(st==='3PT') return Object.assign({},qd,{fg3m:mk?(qd.fg3m||0)+1:(qd.fg3m||0),fg3a:(qd.fg3a||0)+1});if(st==='FT') return Object.assign({},qd,{ftm:mk?(qd.ftm||0)+1:(qd.ftm||0),fta:(qd.fta||0)+1});return Object.assign({},qd,{fg2m:mk?(qd.fg2m||0)+1:(qd.fg2m||0),fg2a:(qd.fg2a||0)+1});});return Object.assign({},g,{oppQs:nq,playLog:(g.playLog||[]).concat([ent])});});showVoiceFeedback('OPP '+(mk?'Made':'Missed')+' '+st,true);}
+      else if(stat){handleOppStat(gs.q,stat,1);var sl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};showVoiceFeedback('OPP '+sl.label,true);}
+      else showVoiceFeedback('Not recognised',false);
       return;
     }
-
-    if(pidId&&stat){
-      // Home player stat
-      handleStat(stat,1,pidId);
-      var sLbl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};
-      showVoiceFeedback('✓ '+sLbl.label+' · #'+num,true);
-      return;
-    }
-
-    if(pidId&&shotCmd){
-      // Home player shot
-      var make=getMake();var st=getShotType();
-      if(st==='FT'){
-        recordFT(make,pidId);
-        showVoiceFeedback('✓ '+(make?'Made':'Missed')+' FT · #'+num,true);
-      } else {
-        setMode(make?'make':'miss');
-        setAwaitCourt({make:make,shotType:st,playerId:pidId});
-        showVoiceFeedback('↓ Tap court · #'+num+' '+(make?'MAKE':'MISS')+' '+st,true);
-      }
-      return;
-    }
-
-    if(stat&&!pidId&&shotCmd===false){
-      // Stat without player — open stat popup
-      handleStatChipTap(stat);
-      var sLbl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};
-      showVoiceFeedback('✓ '+sLbl.label+' — select player',true);
-      return;
-    }
-
-    showVoiceFeedback('✗ Not recognised',false);
+    if(pid&&stat){handleStat(stat,1,pid);var sl2=GSTATS.find(function(g){return g.key===stat;})||{label:stat};showVoiceFeedback(sl2.label+' #'+num,true);return;}
+    if(pid&&sh){var mk=getMk(),st=getST();if(st==='FT'){recordFT(mk,pid);showVoiceFeedback((mk?'Made':'Missed')+' FT #'+num,true);}else{setMode(mk?'make':'miss');setAwaitCourt({make:mk,shotType:st,playerId:pid});showVoiceFeedback('Tap court #'+num+' '+(mk?'MAKE':'MISS')+' '+st,true);}return;}
+    if(stat){handleStatChipTap(stat);var sl3=GSTATS.find(function(g){return g.key===stat;})||{label:stat};showVoiceFeedback(sl3.label+' — select player',true);return;}
+    showVoiceFeedback('Not recognised',false);
   }
-
   function handleSave(opts){
     var label=opts.label,exportAfter=opts.exportAfter,date=todayStr(),ns=sessions.slice();
     if(isGame){
@@ -2729,20 +2418,18 @@ function Tracker(props){
               <MicBtn active={voiceStatus==='listening'} onTap={toggleVoice}/>
               <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
                 {voiceStatus==='listening'&&voiceTranscript
-                  ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center',lineHeight:1.4}}>
-                    "<span style={{color:T.t2,fontStyle:'normal'}}>{voiceTranscript}</span>"
-                  </div>
+                  ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center'}}>"{voiceTranscript}"</div>
                   :voiceStatus==='success'
-                  ?<div style={{color:T.green,fontSize:15,fontWeight:700,letterSpacing:1,textAlign:'center'}}>{voiceResult}</div>
-                  :(voiceStatus==='error'||voiceStatus==='denied')
-                  ?<div style={{color:T.red,fontSize:15,fontWeight:700,textAlign:'center'}}>{voiceResult||'✗ Not recognised'}</div>
+                  ?<div style={{color:T.green,fontSize:15,fontWeight:700,textAlign:'center'}}>{voiceResult}</div>
+                  :voiceStatus==='error'
+                  ?<div style={{color:T.red,fontSize:14,fontWeight:700,textAlign:'center'}}>{voiceResult||'Not recognised'}</div>
                   :awaitCourt
                   ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
                     ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
                   </div>
                   :notice
                   ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{notice.label}</div>
-                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1,textAlign:'center'}}>🎙 Tap mic or use buttons</div>
+                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1,textAlign:'center'}}>🏙 Tap mic or use buttons</div>
                 }
               </div>
             </div>
@@ -2884,29 +2571,21 @@ function Tracker(props){
 
       {/* Undo popup */}
       {showUndoPopup&&isGame&&<UndoPopup
-        gs={gs}
-        players={players}
-        sortedActive={sortedActive}
-        pNames={pNames}
+        gs={gs} players={players} sortedActive={sortedActive} pNames={pNames}
         onClose={function(){setShowUndoPopup(false);}}
-        onApply={function(newGs){setGs(newGs);setShowUndoPopup(false);}}
+        onApply={function(ng){setGs(ng);setShowUndoPopup(false);}}
       />}
 
       {/* Assist popup */}
       {awaitAssist&&isGame&&<AssistPopup
-        onFloorPlayers={sortedActive}
-        players={players}
-        onAssist={handleAssist}
+        onFloorPlayers={sortedActive} players={players} onAssist={handleAssist}
         voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
         onMicTap={toggleVoice}
       />}
 
       {/* Rebound popup */}
       {awaitRebound&&isGame&&<ReboundPopup
-        shooter={awaitRebound.shooter}
-        onFloorPlayers={sortedActive}
-        players={players}
-        onRebound={handleRebound}
+        shooter={awaitRebound.shooter} onFloorPlayers={sortedActive} players={players} onRebound={handleRebound}
         voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
         onMicTap={toggleVoice}
       />}
@@ -3184,9 +2863,7 @@ function generateReport(sessions,players,teamMeta){
     '*{box-sizing:border-box;margin:0;padding:0;font-family:Helvetica Neue,Arial,sans-serif;}'+
     'body{background:#f0f0f0;padding:20px;}'+
     '.page{width:700px;background:#fff;margin:0 auto 30px;padding:32px 36px;border-radius:8px;page-break-after:always;}'+
-    '@media print{body{background:#fff;padding:0;}.page{width:100%;box-shadow:none;border-radius:0;margin:0;padding:24px 20px;page-break-after:always;}.close-btn{display:none!important;}}'+
-    '.close-btn{position:fixed;top:16px;right:16px;padding:10px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:1px;box-shadow:0 2px 8px rgba(0,0,0,0.2);z-index:999;}'+
-    '.close-btn:hover{background:#2d5282;}'+
+    '@media print{body{background:#fff;padding:0;}.page{width:100%;box-shadow:none;border-radius:0;margin:0;padding:24px 20px;page-break-after:always;}button{display:none!important;}}'+
     'h1{font-size:22px;font-weight:600;text-align:center;margin-bottom:3px;color:#111;}'+
     'h2{font-size:14px;font-weight:600;color:#111;margin-bottom:10px;}'+
     'h3{font-size:11px;color:#6b7280;text-align:center;margin-bottom:18px;font-weight:400;}'+
@@ -3194,16 +2871,17 @@ function generateReport(sessions,players,teamMeta){
     'th{font-size:10px;font-weight:600;color:#6b7280;text-align:center;padding:5px 4px;border-bottom:1px solid #e5e7eb;}'+
     'th.left{text-align:left;}td{text-align:center;padding:5px 4px;color:#111;border-bottom:1px solid #f3f4f6;}'+
     'td.left{text-align:left;padding-left:8px;}tr.totals td{font-weight:600;border-top:1.5px solid #d1d5db;background:#f9fafb;}'+
-    '.score-tbl{width:100%;border-collapse:collapse;margin-bottom:22px;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;}'+
+    '.score-tbl{width:100%;border-collapse:collapse;margin-bottom:22px;}'+
     '.score-tbl th{font-size:11px;font-weight:700;color:#6b7280;background:#f9fafb;padding:8px 10px;text-align:center;border:1px solid #e5e7eb;}'+
-    '.score-tbl th.name-col{text-align:left;min-width:140px;}'+
-    '.score-tbl td{padding:10px 10px;font-size:14px;color:#111;border:1px solid #e5e7eb;text-align:center;}'+
-    '.score-tbl td.name-col{text-align:left;font-weight:600;font-size:14px;}'+
-    '.score-tbl td.total-col{font-size:20px;font-weight:700;color:#111;}'+
+    '.score-tbl th.nc{text-align:left;min-width:140px;}'+
+    '.score-tbl td{padding:10px;font-size:14px;border:1px solid #e5e7eb;text-align:center;color:#111;}'+
+    '.score-tbl td.nc{text-align:left;font-weight:600;}'+
+    '.score-tbl td.tc{font-size:20px;font-weight:700;}'+
+
+
     'hr{border:none;border-top:1px solid #e5e7eb;margin:20px 0;}'+
-    '.two-col{display:table;width:100%;margin-top:4px;border-spacing:10px 0;}'+
-    '.two-col-inner{display:table-row;}'+
-    '.mini-box{display:table-cell;width:50%;background:#f9fafb;border-radius:6px;padding:12px 14px;vertical-align:top;}'+
+    '.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:4px;}'+
+    '.mini-box{background:#f9fafb;border-radius:6px;padding:12px 14px;}'+
     '.mini-box h4{font-size:10px;font-weight:600;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}'+
     '.footer{margin-top:22px;padding-top:14px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;}'+
     '.brand{font-size:11px;font-weight:600;color:#6b7280;letter-spacing:2px;text-transform:uppercase;}'+
@@ -3217,34 +2895,20 @@ function generateReport(sessions,players,teamMeta){
     '.pill span{font-weight:600;color:#111;}'+
     '.chart-label{font-size:13px;font-weight:600;color:#111;margin-bottom:6px;}'+
     '.chart-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:#6b7280;margin-bottom:8px;}'+
-    '.shot-breakdown{display:table;width:100%;margin-top:14px;border-spacing:8px 0;}'+
+    '.shot-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;}'+
     '.sb-cell{background:#f9fafb;border-radius:6px;padding:10px;text-align:center;}'+
     '.sb-label{font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
     '.sb-val{font-size:17px;font-weight:600;color:#111;}.sb-pct{font-size:11px;color:#6b7280;}'+
-  '</style></head><body>'+
-  '<button class="close-btn" onclick="window.close()">✕ Close Report</button>'+
+  '</style></head><body><button style="position:fixed;top:16px;right:16px;padding:10px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;z-index:999;" onclick="window.close()">&#x2715; Close Report</button>'+
   '<div class="page">'+
     '<h1>'+teamMeta.name+' <strong>'+gameScore.my+'</strong> &ndash; '+opp+' <strong>'+gameScore.opp+'</strong></h1>'+
     '<h3>'+gDate+' · ShotTracker 4.0</h3>'+
-    '<table class="score-tbl">'+
-      '<thead><tr>'+
-        '<th class="name-col"></th>'+
-        pN.map(function(n){return '<th>'+n+'</th>';}).join('')+
-        '<th style="color:#111;font-size:13px;">T</th>'+
-      '</tr></thead>'+
-      '<tbody>'+
-        '<tr>'+
-          '<td class="name-col">'+teamMeta.name+'</td>'+
-          myPeriodCells+
-          '<td class="total-col">'+gameScore.my+'</td>'+
-        '</tr>'+
-        '<tr>'+
-          '<td class="name-col">'+opp+'</td>'+
-          oppPeriodCells+
-          '<td class="total-col">'+gameScore.opp+'</td>'+
-        '</tr>'+
-      '</tbody>'+
-    '</table>'+
+    '<table class="score-tbl"><thead><tr><th class="nc"></th>'+
+      pN.map(function(n){return '<th>'+n+'</th>';}).join('')+
+      '<th style="color:#111;font-size:13px;">T</th></tr></thead><tbody>'+
+      '<tr><td class="nc">'+teamMeta.name+'</td>'+myPeriodCells+'<td class="tc">'+gameScore.my+'</td></tr>'+
+      '<tr><td class="nc">'+opp+'</td>'+oppPeriodCells+'<td class="tc">'+gameScore.opp+'</td></tr>'+
+    '</tbody></table>'+
     '<h2>'+teamMeta.name+'</h2>'+
     '<table><thead><tr>'+
       '<th class="left" style="min-width:120px;">Player</th>'+
