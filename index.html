@@ -1542,7 +1542,9 @@ function UndoPopup(props){
   var gs=props.gs,players=props.players,sortedActive=props.sortedActive,pNames=props.pNames,onClose=props.onClose,onApply=props.onApply;
   var editEntryState=useState(null);var editEntry=editEntryState[0],setEditEntry=editEntryState[1];
   var editStepState=useState(null);var editStep=editStepState[0],setEditStep=editStepState[1];
-  var log=gs.playLog||[];var lastFour=log.slice(-4).slice().reverse();
+  var log=gs.playLog||[];
+  var statLog=log.filter(function(e){return e.action!=='SUB IN'&&e.action!=='SUB OUT';});
+  var lastFour=statLog.slice(-4).slice().reverse();
   function isShot(a){return a&&(a.startsWith('Made ')||a.startsWith('Missed '));}
   function isFTAction(a){return a&&(a.includes('Free Throw')||a.includes('FT'));}
   function getStatKey(a){return STAT_LABEL_TO_KEY[a]||null;}
@@ -1647,6 +1649,70 @@ function MicBtn(props){
         userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
       🎙
     </button>
+  );
+}
+
+// ── Live Box Score ────────────────────────────────────────────────────────────
+function LiveBoxScore(props){
+  var players=props.players,gs=props.gs,open=props.open,onToggle=props.onToggle;
+  var rows=players.map(function(p){
+    var pd=gs.pdata[p.id];
+    if(!pd||!hasDraftQ(pd.qs)) return null;
+    var allSh=pd.qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
+    var allFT=pd.qs.reduce(function(a,q){return a.concat(q.ftShots||[]);},[] );
+    var pts=calcPts(allSh,allFT);
+    var totStats={};
+    GSTATS.forEach(function(g){totStats[g.key]=pd.qs.reduce(function(a,q){return a+(q[g.key]||0);},0);});
+    var reb=totStats.oReb+totStats.dReb;
+    var active=pd.active!==false;
+    return {p:p,pts:pts,reb:reb,ast:totStats.ast,stl:totStats.stl,blk:totStats.blk,to:totStats.to,pf:totStats.foul,active:active};
+  }).filter(Boolean).sort(function(a,b){return parseNum(a.p.number)-parseNum(b.p.number);});
+
+  if(rows.length===0) return null;
+
+  return (
+    <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
+      <button onClick={onToggle} style={{width:'100%',padding:'10px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',background:'none',border:'none',cursor:'pointer'}}>
+        <div style={{fontSize:8,color:T.green,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Live Box Score</div>
+        <div style={{fontSize:11,color:T.t4,fontWeight:700}}>{open?'▲ Hide':'▼ Show'}</div>
+      </button>
+      {open&&(
+        <div style={{overflowX:'auto',padding:'0 4px 10px'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:380}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid '+T.border}}>
+                <th style={{textAlign:'left',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>#</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>PTS</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>REB</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>AST</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>STL</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>BLK</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>TO</th>
+                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>PF</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(function(r){
+                var pIdx=players.findIndex(function(pl){return pl.id===r.p.id;});
+                var col=pc(r.p,pIdx);
+                return (
+                  <tr key={r.p.id} style={{borderBottom:'1px solid '+T.border,opacity:r.active?1:0.5}}>
+                    <td style={{padding:'5px 6px',fontWeight:900,color:col}}>{r.p.number}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',fontWeight:900,color:T.t1}}>{r.pts}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.reb}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.ast}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.stl}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.blk}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.to}</td>
+                    <td style={{padding:'5px 6px',textAlign:'center',color:r.pf>=5?T.red:T.t2,fontWeight:r.pf>=5?900:400}}>{r.pf}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1864,6 +1930,8 @@ function Tracker(props){
   var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
+  var boxScoreOpenState=useState(true);
+  var boxScoreOpen=boxScoreOpenState[0],setBoxScoreOpen=boxScoreOpenState[1];
 
   var showUndoPopupState=useState(false);
   var showUndoPopup=showUndoPopupState[0],setShowUndoPopup=showUndoPopupState[1];
@@ -1948,13 +2016,14 @@ function Tracker(props){
     if(isGame){
       var my=calcMyScore(gs),opp=calcOppScore(gs);
       var isActive=gs.pdata[p.id]?gs.pdata[p.id].active!==false:false;
+      var subEntry={id:Date.now(),q:gs.q,team:'home',player:p.number,action:isActive?'SUB OUT':'SUB IN',pts:0,ts:new Date().toISOString()};
       setGs(function(g){
         var stints=(g.stints[p.id]||[]).slice();
         if(isActive&&stints.length>0){var last=stints[stints.length-1];if(last.e_my===undefined) stints[stints.length-1]=Object.assign({},last,{e_my:my,e_opp:opp});}
         else{stints.push({s_my:my,s_opp:opp});}
         var newPdata=Object.assign({},g.pdata);
         newPdata[p.id]=Object.assign({},g.pdata[p.id],{active:!isActive});
-        return Object.assign({},g,{pdata:newPdata,stints:Object.assign({},g.stints,{[p.id]:stints})});
+        return Object.assign({},g,{pdata:newPdata,stints:Object.assign({},g.stints,{[p.id]:stints}),playLog:(g.playLog||[]).concat([subEntry])});
       });
     } else {
       var np=players.map(function(pl){return pl.id===p.id?Object.assign({},pl,{active:pl.active===false?true:false}):pl;});
@@ -2240,7 +2309,7 @@ function Tracker(props){
       var oppTotal=(gs.oppQs||[]).reduce(function(a,q){return {fg2m:a.fg2m+(q.fg2m||0),fg2a:a.fg2a+(q.fg2a||0),fg3m:a.fg3m+(q.fg3m||0),fg3a:a.fg3a+(q.fg3a||0),ftm:a.ftm+(q.ftm||0),fta:a.fta+(q.fta||0),oReb:a.oReb+(q.oReb||0),dReb:a.dReb+(q.dReb||0),to:a.to+(q.to||0),foul:a.foul+(q.foul||0)};},EMPTY_OPP());
       var oppData={quarters:(gs.oppQs||[]).map(function(q){return Object.assign({},q);}),total:oppTotal};
       var savedLog=gs.playLog||[];
-      players.filter(function(p){return gs.pdata[p.id]&&gs.pdata[p.id].active!==false;}).forEach(function(p){
+      players.filter(function(p){return gs.pdata[p.id];}).forEach(function(p){
         var pd=gs.pdata[p.id];
         if(!pd||!hasDraftQ(pd.qs)) return;
         var allSh=pd.qs.reduce(function(a,q){return a.concat(q.shots||[]);},[] );
@@ -2360,6 +2429,9 @@ function Tracker(props){
 
             {/* Scoreboard */}
             {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
+
+            {/* Live box score */}
+            {isGame&&<LiveBoxScore players={players} gs={gs} open={boxScoreOpen} onToggle={function(){setBoxScoreOpen(!boxScoreOpen);}}/>}
 
             {/* On-floor player chips */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px'}}>
