@@ -1654,7 +1654,7 @@ function MicBtn(props){
 
 // ── Live Box Score ────────────────────────────────────────────────────────────
 function LiveBoxScore(props){
-  var players=props.players,gs=props.gs,open=props.open,onToggle=props.onToggle;
+  var players=props.players,gs=props.gs,myScore=props.myScore,oppScore=props.oppScore,open=props.open,onToggle=props.onToggle;
   var rows=players.map(function(p){
     var pd=gs.pdata[p.id];
     if(!pd||!hasDraftQ(pd.qs)) return null;
@@ -1663,13 +1663,34 @@ function LiveBoxScore(props){
     var pts=calcPts(allSh,allFT);
     var totStats={};
     GSTATS.forEach(function(g){totStats[g.key]=pd.qs.reduce(function(a,q){return a+(q[g.key]||0);},0);});
+    var fg2sh=allSh.filter(function(s){return s.type!=='3-Pointer';});
+    var fg3sh=allSh.filter(function(s){return s.type==='3-Pointer';});
+    var fg2m=fg2sh.filter(function(s){return s.make;}).length;
+    var fg3m=fg3sh.filter(function(s){return s.make;}).length;
+    var ftm=allFT.filter(function(s){return s.make;}).length;
+    var fgm=allSh.filter(function(s){return s.make;}).length;
+    var fgPct=allSh.length>0?Math.round(fgm/allSh.length*100)+'%':'—';
+    var fg3Pct=fg3sh.length>0?Math.round(fg3m/fg3sh.length*100)+'%':'—';
+    var ftPct=allFT.length>0?Math.round(ftm/allFT.length*100)+'%':'—';
     var reb=totStats.oReb+totStats.dReb;
     var active=pd.active!==false;
-    return {p:p,pts:pts,reb:reb,ast:totStats.ast,stl:totStats.stl,blk:totStats.blk,to:totStats.to,pf:totStats.foul,active:active};
+    // Live +/-: close any open stint against current score
+    var liveStints=(gs.stints[p.id]||[]).map(function(s){
+      return s.e_my===undefined?Object.assign({},s,{e_my:myScore,e_opp:oppScore}):s;
+    });
+    var pm=calcPlusMinus(liveStints,myScore,oppScore);
+    return {p:p,pts:pts,
+      fgStr:fgm+'-'+allSh.length,fgPct:fgPct,
+      fg3Str:fg3m+'-'+fg3sh.length,fg3Pct:fg3Pct,
+      ftStr:ftm+'-'+allFT.length,ftPct:ftPct,
+      oReb:totStats.oReb,dReb:totStats.dReb,reb:reb,
+      ast:totStats.ast,stl:totStats.stl,blk:totStats.blk,to:totStats.to,pf:totStats.foul,
+      pm:pm,active:active};
   }).filter(Boolean).sort(function(a,b){return parseNum(a.p.number)-parseNum(b.p.number);});
 
   if(rows.length===0) return null;
 
+  var th={textAlign:'center',padding:'4px 5px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'};
   return (
     <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
       <button onClick={onToggle} style={{width:'100%',padding:'10px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',background:'none',border:'none',cursor:'pointer'}}>
@@ -1678,33 +1699,53 @@ function LiveBoxScore(props){
       </button>
       {open&&(
         <div style={{overflowX:'auto',padding:'0 4px 10px'}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:380}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:680}}>
             <thead>
               <tr style={{borderBottom:'1px solid '+T.border}}>
-                <th style={{textAlign:'left',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>#</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>PTS</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>REB</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>AST</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>STL</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>BLK</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>TO</th>
-                <th style={{textAlign:'center',padding:'4px 6px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>PF</th>
+                <th style={{textAlign:'left',padding:'4px 5px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>#</th>
+                <th style={th}>PTS</th>
+                <th style={th}>PF</th>
+                <th style={th}>FG</th>
+                <th style={th}>FG%</th>
+                <th style={th}>3PT</th>
+                <th style={th}>3PT%</th>
+                <th style={th}>FT</th>
+                <th style={th}>FT%</th>
+                <th style={th}>TO</th>
+                <th style={th}>ORB</th>
+                <th style={th}>DRB</th>
+                <th style={th}>REB</th>
+                <th style={th}>AST</th>
+                <th style={th}>STL</th>
+                <th style={th}>BLK</th>
+                <th style={th}>+/−</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(function(r){
                 var pIdx=players.findIndex(function(pl){return pl.id===r.p.id;});
                 var col=pc(r.p,pIdx);
+                var pmStr=r.pm===null?'—':r.pm>0?'+'+r.pm:String(r.pm);
+                var pmCol=r.pm===null?T.t4:r.pm>0?T.green:r.pm<0?T.red:T.t2;
                 return (
                   <tr key={r.p.id} style={{borderBottom:'1px solid '+T.border,opacity:r.active?1:0.5}}>
-                    <td style={{padding:'5px 6px',fontWeight:900,color:col}}>{r.p.number}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',fontWeight:900,color:T.t1}}>{r.pts}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.reb}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.ast}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.stl}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.blk}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',color:T.t2}}>{r.to}</td>
-                    <td style={{padding:'5px 6px',textAlign:'center',color:r.pf>=5?T.red:T.t2,fontWeight:r.pf>=5?900:400}}>{r.pf}</td>
+                    <td style={{padding:'5px 5px',fontWeight:900,color:col}}>{r.p.number}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',fontWeight:900,color:T.t1}}>{r.pts}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:r.pf>=5?T.red:T.t2,fontWeight:r.pf>=5?900:400}}>{r.pf}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fgStr}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fgPct}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fg3Str}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fg3Pct}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.ftStr}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.ftPct}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.to}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.oReb}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.dReb}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.reb}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.ast}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.stl}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.blk}</td>
+                    <td style={{padding:'5px 5px',textAlign:'center',fontWeight:700,color:pmCol}}>{pmStr}</td>
                   </tr>
                 );
               })}
@@ -2431,7 +2472,7 @@ function Tracker(props){
             {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
 
             {/* Live box score */}
-            {isGame&&<LiveBoxScore players={players} gs={gs} open={boxScoreOpen} onToggle={function(){setBoxScoreOpen(!boxScoreOpen);}}/>}
+            {isGame&&<LiveBoxScore players={players} gs={gs} myScore={myScore} oppScore={oppScore} open={boxScoreOpen} onToggle={function(){setBoxScoreOpen(!boxScoreOpen);}}/>}
 
             {/* On-floor player chips */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px'}}>
@@ -2773,7 +2814,8 @@ function generateReport(sessions,players,teamMeta){
     var row={
       num:p.number,name:p.name||'',
       pts:pts,pf:sess.foul||0,
-      fgStr:fgStr(sh),fg2Str:fg2m+'-'+fg2sh.length,fg3Str:fg3m+'-'+fg3sh.length,ftStr:ftStr(ft),
+      fgStr:fgStr(sh),fgPct:calcPct(sh.filter(function(s){return s.make;}).length,sh.length),
+      fg2Str:fg2m+'-'+fg2sh.length,fg3Str:fg3m+'-'+fg3sh.length,fg3Pct:calcPct(fg3m,fg3sh.length),ftStr:ftStr(ft),
       to:sess.to||0,oReb:sess.oReb||0,dReb:sess.dReb||0,reb:(sess.oReb||0)+(sess.dReb||0),
       ast:sess.ast||0,stl:sess.stl||0,blk:sess.blk||0,pm:sess.plusMinus!=null?sess.plusMinus:0
     };
@@ -2854,7 +2896,7 @@ function generateReport(sessions,players,teamMeta){
     return '<tr>'+
       '<td style="text-align:left;padding:5px 8px;font-size:12px;">'+dispName+'</td>'+
       '<td>'+r.pts+'</td><td>'+r.pf+'</td>'+
-      '<td>'+r.fgStr+'</td><td>'+r.fg3Str+'</td><td>'+r.ftStr+'</td>'+
+      '<td>'+r.fgStr+'</td><td>'+r.fgPct+'</td><td>'+r.fg3Str+'</td><td>'+r.fg3Pct+'</td><td>'+r.ftStr+'</td>'+
       '<td>'+r.to+'</td><td>'+r.oReb+'</td><td>'+r.dReb+'</td><td>'+r.reb+'</td>'+
       '<td>'+r.ast+'</td><td>'+r.stl+'</td><td>'+r.blk+'</td>'+
       '<td style="color:'+pmColor+';font-weight:600;">'+pmStr+'</td>'+
@@ -2862,8 +2904,12 @@ function generateReport(sessions,players,teamMeta){
   }).join('');
 
   var totPmStr='0';
-  var totFgStr=teamTotals.fg2m+teamTotals.fg3m+'-'+(teamTotals.fg2a+teamTotals.fg3a);
+  var totFgA=teamTotals.fg2a+teamTotals.fg3a;
+  var totFgM=teamTotals.fg2m+teamTotals.fg3m;
+  var totFgStr=totFgM+'-'+totFgA;
+  var totFgPct=calcPct(totFgM,totFgA);
   var totFg3Str=teamTotals.fg3m+'-'+teamTotals.fg3a;
+  var totFg3Pct=calcPct(teamTotals.fg3m,teamTotals.fg3a);
   var totFtStr=teamTotals.ftm+'-'+teamTotals.fta;
   var totReb=teamTotals.oReb+teamTotals.dReb;
 
@@ -2986,7 +3032,7 @@ function generateReport(sessions,players,teamMeta){
     '<h2>'+teamMeta.name+'</h2>'+
     '<table><thead><tr>'+
       '<th class="left" style="min-width:120px;">Player</th>'+
-      '<th>PTS</th><th>PF</th><th>FG</th><th>3PT</th><th>FT</th>'+
+      '<th>PTS</th><th>PF</th><th>FG</th><th>FG%</th><th>3PT</th><th>3PT%</th><th>FT</th>'+
       '<th>TO</th><th>ORB</th><th>DRB</th><th>REB</th>'+
       '<th>AST</th><th>STL</th><th>BLK</th><th>+/&minus;</th>'+
     '</tr></thead><tbody>'+
@@ -2994,7 +3040,7 @@ function generateReport(sessions,players,teamMeta){
     '<tr class="totals">'+
       '<td class="left">Totals</td>'+
       '<td>'+teamTotals.pts+'</td><td>'+teamTotals.pf+'</td>'+
-      '<td>'+totFgStr+'</td><td>'+totFg3Str+'</td><td>'+totFtStr+'</td>'+
+      '<td>'+totFgStr+'</td><td>'+totFgPct+'</td><td>'+totFg3Str+'</td><td>'+totFg3Pct+'</td><td>'+totFtStr+'</td>'+
       '<td>'+teamTotals.to+'</td><td>'+teamTotals.oReb+'</td><td>'+teamTotals.dReb+'</td><td>'+totReb+'</td>'+
       '<td>'+teamTotals.ast+'</td><td>'+teamTotals.stl+'</td><td>'+teamTotals.blk+'</td><td>0</td>'+
     '</tr></tbody></table>'+
