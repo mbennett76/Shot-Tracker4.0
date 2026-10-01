@@ -1320,6 +1320,10 @@ function SessionTypeScreen(props){
   var editHeadState=useState(false);var editHead=editHeadState[0],setEditHead=editHeadState[1];
   var editAstIdxState=useState(null);var editAstIdx=editAstIdxState[0],setEditAstIdx=editAstIdxState[1];
   var historyViewState=useState(null);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
+  var addPlayerOpenState=useState(false);var addPlayerOpen=addPlayerOpenState[0],setAddPlayerOpen=addPlayerOpenState[1];
+  var addPNumState=useState('');var addPNum=addPNumState[0],setAddPNum=addPNumState[1];
+  var addPNameState=useState('');var addPName=addPNameState[0],setAddPName=addPNameState[1];
+  var confDelPlayerState=useState(null);var confDelPlayer=confDelPlayerState[0],setConfDelPlayer=confDelPlayerState[1];
 
   var now=new Date();now.setHours(0,0,0,0);
   var upcoming=schedule.filter(function(e){return new Date(e.date+'T12:00:00')>=now;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
@@ -1328,6 +1332,17 @@ function SessionTypeScreen(props){
   function saveSchedule(newSched){onUpdateData({schedule:newSched});}
   function saveCoaches(newCoaches){onUpdateData({coaches:newCoaches});}
   function savePlayers(newPlayers){onUpdateData({players:newPlayers});}
+  function handleAddPlayer(){
+    if(!addPNum.trim()) return;
+    var idx=players.length;
+    var np={id:uid(),number:addPNum.trim(),name:addPName.trim(),color:PAL[idx%PAL.length],active:true,email:'',cell:'',parent:{name:'',cell:'',email:''}};
+    savePlayers(players.concat([np]));
+    setAddPNum('');setAddPName('');setAddPlayerOpen(false);
+  }
+  function handleDeletePlayer(pid){
+    savePlayers(players.filter(function(p){return p.id!==pid;}));
+    setConfDelPlayer(null);setEditPlayer(null);
+  }
 
   function handleEventSave(ev){
     var existing=schedule.find(function(e){return e.id===ev.id;});
@@ -1465,22 +1480,58 @@ function SessionTypeScreen(props){
           <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
             <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Players ({players.length})</div>
+              <button onClick={function(){setAddPlayerOpen(!addPlayerOpen);setAddPNum('');setAddPName('');}} style={{background:T.accent,border:'none',borderRadius:8,color:'#fff',fontSize:11,fontWeight:700,padding:'5px 12px',cursor:'pointer',letterSpacing:1}}>+ Add Player</button>
             </div>
+            {addPlayerOpen&&(
+              <div style={{padding:'12px 14px',borderBottom:'1px solid '+T.border,background:T.bg,display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:10,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>New Player</div>
+                <div style={{display:'flex',gap:8}}>
+                  <input
+                    type="text" placeholder="#" value={addPNum}
+                    onChange={function(e){setAddPNum(e.target.value);}}
+                    onKeyDown={function(e){if(e.key==='Enter') handleAddPlayer();}}
+                    style={{width:56,padding:'8px',borderRadius:8,border:'1.5px solid '+T.border,background:T.card,color:T.t1,fontSize:13,fontWeight:900,textAlign:'center'}}
+                  />
+                  <input
+                    type="text" placeholder="Name (optional)" value={addPName}
+                    onChange={function(e){setAddPName(e.target.value);}}
+                    onKeyDown={function(e){if(e.key==='Enter') handleAddPlayer();}}
+                    style={{flex:1,padding:'8px',borderRadius:8,border:'1.5px solid '+T.border,background:T.card,color:T.t1,fontSize:13}}
+                  />
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={handleAddPlayer} style={{flex:1,padding:'9px',borderRadius:8,border:'none',background:T.accent,color:'#fff',fontSize:13,fontWeight:700,cursor:'pointer'}}>Add</button>
+                  <button onClick={function(){setAddPlayerOpen(false);}} style={{padding:'9px 16px',borderRadius:8,border:'1px solid '+T.border,background:'transparent',color:T.t3,fontSize:13,cursor:'pointer'}}>Cancel</button>
+                </div>
+              </div>
+            )}
             <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:6}}>
               {players.sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p,i){
                 var col=pc(p,players.indexOf(p));
                 var hasContact=p.email||p.cell||(p.parent&&(p.parent.name||p.parent.cell));
-                return <div key={p.id} onClick={function(){setEditPlayer(p);}} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:T.bg,borderRadius:10,border:'1px solid '+T.border,cursor:'pointer'}}>
-                  <div style={{width:38,height:38,borderRadius:10,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:900,color:col,flexShrink:0}}>{p.number}</div>
-                  <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.t1}}>{p.name||'#'+p.number}</div>
-                    {hasContact&&<div style={{fontSize:10,color:T.t3}}>{p.cell||p.email}</div>}
-                    {!hasContact&&<div style={{fontSize:10,color:T.t4,fontStyle:'italic'}}>No contact info</div>}
-                    {p.parent&&p.parent.name&&<div style={{fontSize:10,color:T.t4}}>Parent: {p.parent.name}</div>}
+                var isConfDel=confDelPlayer===p.id;
+                return <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:T.bg,borderRadius:10,border:'1px solid '+(isConfDel?T.red:T.border)}}>
+                  <div onClick={function(){setEditPlayer(p);setConfDelPlayer(null);}} style={{display:'flex',alignItems:'center',gap:10,flex:1,cursor:'pointer'}}>
+                    <div style={{width:38,height:38,borderRadius:10,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,fontWeight:900,color:col,flexShrink:0}}>{p.number}</div>
+                    <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:T.t1}}>{p.name||'#'+p.number}</div>
+                      {hasContact&&<div style={{fontSize:10,color:T.t3}}>{p.cell||p.email}</div>}
+                      {!hasContact&&<div style={{fontSize:10,color:T.t4,fontStyle:'italic'}}>No contact info</div>}
+                      {p.parent&&p.parent.name&&<div style={{fontSize:10,color:T.t4}}>Parent: {p.parent.name}</div>}
+                    </div>
+                    {!isConfDel&&<div style={{fontSize:11,color:T.t4}}>›</div>}
                   </div>
-                  <div style={{fontSize:11,color:T.t4}}>›</div>
+                  {isConfDel?(
+                    <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                      <div style={{fontSize:10,color:T.red,fontWeight:700}}>Delete?</div>
+                      <button onClick={function(){handleDeletePlayer(p.id);}} style={{padding:'4px 10px',borderRadius:6,border:'none',background:T.red,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer'}}>Yes</button>
+                      <button onClick={function(){setConfDelPlayer(null);}} style={{padding:'4px 10px',borderRadius:6,border:'1px solid '+T.border,background:'transparent',color:T.t3,fontSize:11,cursor:'pointer'}}>No</button>
+                    </div>
+                  ):(
+                    <button onClick={function(e){e.stopPropagation();setConfDelPlayer(p.id);}} style={{padding:'4px 8px',borderRadius:6,border:'1px solid '+T.border,background:'transparent',color:T.red,fontSize:13,cursor:'pointer',lineHeight:1}} title="Delete player">✕</button>
+                  )}
                 </div>;
               })}
-              {players.length===0&&<div style={{textAlign:'center',padding:'20px',color:T.t4,fontSize:12}}>No players yet. Add players during a session.</div>}
+              {players.length===0&&<div style={{textAlign:'center',padding:'20px',color:T.t4,fontSize:12}}>No players yet. Tap "+ Add Player" above to add one.</div>}
             </div>
           </div>
         </div>
@@ -1534,6 +1585,320 @@ function SessionTypeScreen(props){
 // ── Game Setup ─────────────────────────────────────────────────────────────────
 // (now handled inside EventSetupModal — kept as thin pass-through for App routing compatibility)
 
+
+// ── Live Stats Modal ────────────────────────────────────────────────────────────
+function LiveStatsModal(props){
+  var gs=props.gs,players=props.players,myName=props.myName,oppName=props.oppName;
+  var myScore=props.myScore,oppScore=props.oppScore,numPeriods=props.numPeriods,pNames=props.pNames,onClose=props.onClose;
+  function calcPct(m,a){return a>0?Math.round(m/a*100):null;}
+  function fmtPct(m,a){var p=calcPct(m,a);return p===null?'—':p+'%';}
+  var numQ=numPeriods||4;
+  // Per-quarter scoring grid
+  var myQScores=[];var oppQScores=[];
+  for(var qi=0;qi<numQ;qi++){
+    var mq=0,oq=0;
+    players.forEach(function(p){var pd=gs.pdata[p.id];if(!pd) return;var qd=pd.qs[qi]||{};var sh=qd.shots||[];var ft=qd.ftShots||[];sh.forEach(function(s){if(s.make){mq+=s.type==='3PT'?3:2;}});ft.forEach(function(s){if(s.make) mq+=1;});});
+    var oqd=gs.oppQs&&gs.oppQs[qi]||{};oq=(oqd.fg2m||0)*2+(oqd.fg3m||0)*3+(oqd.ftm||0);
+    myQScores.push(mq);oppQScores.push(oq);
+  }
+  // Player rows
+  var playerRows=players.map(function(p){
+    var pd=gs.pdata[p.id];
+    if(!pd) return null;
+    var totals={pts:0,foul:0,fgm:0,fga:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0,oReb:0,dReb:0,ast:0,stl:0,blk:0};
+    pd.qs.forEach(function(qd){
+      (qd.shots||[]).forEach(function(s){totals.fga++;if(s.make){totals.fgm++;totals.pts+=s.type==='3PT'?3:2;}if(s.type==='3PT'){totals.fg3a++;if(s.make) totals.fg3m++;}});
+      (qd.ftShots||[]).forEach(function(s){totals.fta++;if(s.make){totals.ftm++;totals.pts+=1;}});
+      totals.foul+=(qd.foul||0);totals.to+=(qd.to||0);totals.oReb+=(qd.oReb||0);totals.dReb+=(qd.dReb||0);totals.ast+=(qd.ast||0);totals.stl+=(qd.stl||0);totals.blk+=(qd.blk||0);
+    });
+    var pm=0;
+    var stints=gs.stints&&gs.stints[p.id]||[];
+    stints.forEach(function(st){var end_my=st.e_my!==undefined?st.e_my:myScore;var end_opp=st.e_opp!==undefined?st.e_opp:oppScore;pm+=(end_my-st.s_my)-(end_opp-st.s_opp);});
+    return {player:p,totals:totals,pm:pm};
+  }).filter(Boolean);
+  // Opp totals
+  var oppTotals={pts:0,fgm:0,fga:0,fg3m:0,fg3a:0,ftm:0,fta:0,to:0,oReb:0,dReb:0};
+  (gs.oppQs||[]).forEach(function(qd){oppTotals.fgm+=(qd.fg2m||0)+(qd.fg3m||0);oppTotals.fga+=(qd.fg2a||0)+(qd.fg3a||0);oppTotals.fg3m+=(qd.fg3m||0);oppTotals.fg3a+=(qd.fg3a||0);oppTotals.ftm+=(qd.ftm||0);oppTotals.fta+=(qd.fta||0);oppTotals.pts=oppTotals.fgm*0+oppTotals.ftm;});
+  (gs.oppQs||[]).forEach(function(qd){oppTotals.pts+=(qd.fg2m||0)*2+(qd.fg3m||0)*3+(qd.ftm||0);oppTotals.to+=(qd.to||0);oppTotals.oReb+=(qd.oReb||0);oppTotals.dReb+=(qd.dReb||0);});
+  var thStyle={fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'4px 6px',textAlign:'center',whiteSpace:'nowrap'};
+  var tdStyle={fontSize:12,color:T.t2,padding:'5px 6px',textAlign:'center',fontWeight:600};
+  var hdStyle=Object.assign({},tdStyle,{fontWeight:900,color:T.t1});
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:999,display:'flex',flexDirection:'column'}} onClick={onClose}>
+      <div style={{flex:1,overflowY:'auto',padding:'16px 12px 32px'}} onClick={function(e){e.stopPropagation();}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+          <div style={{fontSize:16,fontWeight:900,color:'#fff',letterSpacing:2,textTransform:'uppercase'}}>📊 Live Stats</div>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',fontSize:20,width:36,height:36,borderRadius:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>×</button>
+        </div>
+        {/* Per-quarter scoring grid */}
+        <div style={{background:T.card,borderRadius:14,padding:'14px',marginBottom:14,boxShadow:T.shadowMd}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>Quarter Scores</div>
+          <div style={{overflowX:'auto'}}>
+            <table style={{borderCollapse:'collapse',width:'100%',minWidth:280}}>
+              <thead>
+                <tr>
+                  <th style={Object.assign({},thStyle,{textAlign:'left',minWidth:80})}> </th>
+                  {pNames.slice(0,numQ).map(function(n,i){return <th key={i} style={thStyle}>{n}</th>;})}
+                  <th style={Object.assign({},thStyle,{color:T.t2})}>TOT</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{background:T.accent+'12'}}>
+                  <td style={Object.assign({},tdStyle,{textAlign:'left',fontWeight:900,color:T.accent,fontSize:11})}>{myName}</td>
+                  {myQScores.map(function(s,i){return <td key={i} style={tdStyle}>{s}</td>;})}
+                  <td style={Object.assign({},tdStyle,{fontWeight:900,color:T.t1})}>{myScore}</td>
+                </tr>
+                <tr>
+                  <td style={Object.assign({},tdStyle,{textAlign:'left',fontWeight:700,color:T.t2,fontSize:11})}>{oppName||'OPP'}</td>
+                  {oppQScores.map(function(s,i){return <td key={i} style={tdStyle}>{s}</td>;})}
+                  <td style={Object.assign({},tdStyle,{fontWeight:900,color:T.t1})}>{oppScore}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {/* Player stat table */}
+        <div style={{background:T.card,borderRadius:14,padding:'14px',marginBottom:14,boxShadow:T.shadowMd,overflowX:'auto'}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>{myName} — Player Stats</div>
+          <table style={{borderCollapse:'collapse',width:'100%',minWidth:640}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid '+T.border}}>
+                <th style={Object.assign({},thStyle,{textAlign:'left'})}>Player</th>
+                <th style={thStyle}>PTS</th><th style={thStyle}>PF</th>
+                <th style={thStyle}>FG</th><th style={thStyle}>FG%</th>
+                <th style={thStyle}>3PT</th><th style={thStyle}>3PT%</th>
+                <th style={thStyle}>FT</th><th style={thStyle}>FT%</th>
+                <th style={thStyle}>TO</th><th style={thStyle}>ORB</th>
+                <th style={thStyle}>DRB</th><th style={thStyle}>REB</th>
+                <th style={thStyle}>AST</th><th style={thStyle}>STL</th>
+                <th style={thStyle}>BLK</th><th style={thStyle}>+/−</th>
+              </tr>
+            </thead>
+            <tbody>
+              {playerRows.map(function(row){
+                var t=row.totals;var p=row.player;
+                return (
+                  <tr key={p.id} style={{borderBottom:'1px solid '+T.border+'55'}}>
+                    <td style={Object.assign({},tdStyle,{textAlign:'left',fontWeight:900,color:T.accent})}>{p.number}{p.name?' '+p.name:''}</td>
+                    <td style={hdStyle}>{t.pts}</td>
+                    <td style={tdStyle}>{t.foul}</td>
+                    <td style={tdStyle}>{t.fgm}-{t.fga}</td>
+                    <td style={tdStyle}>{fmtPct(t.fgm,t.fga)}</td>
+                    <td style={tdStyle}>{t.fg3m}-{t.fg3a}</td>
+                    <td style={tdStyle}>{fmtPct(t.fg3m,t.fg3a)}</td>
+                    <td style={tdStyle}>{t.ftm}-{t.fta}</td>
+                    <td style={tdStyle}>{fmtPct(t.ftm,t.fta)}</td>
+                    <td style={tdStyle}>{t.to}</td>
+                    <td style={tdStyle}>{t.oReb}</td>
+                    <td style={tdStyle}>{t.dReb}</td>
+                    <td style={tdStyle}>{t.oReb+t.dReb}</td>
+                    <td style={tdStyle}>{t.ast}</td>
+                    <td style={tdStyle}>{t.stl}</td>
+                    <td style={tdStyle}>{t.blk}</td>
+                    <td style={Object.assign({},tdStyle,{color:row.pm>0?T.green:row.pm<0?T.red:T.t3,fontWeight:700})}>{row.pm>0?'+':''}{row.pm}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {/* Opponent totals */}
+        <div style={{background:T.card,borderRadius:14,padding:'14px',boxShadow:T.shadowMd,overflowX:'auto'}}>
+          <div style={{fontSize:10,fontWeight:700,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>{oppName||'Opponent'} — Totals</div>
+          <table style={{borderCollapse:'collapse',width:'100%',minWidth:480}}>
+            <thead>
+              <tr style={{borderBottom:'1px solid '+T.border}}>
+                <th style={Object.assign({},thStyle,{textAlign:'left'})}>Team</th>
+                <th style={thStyle}>PTS</th>
+                <th style={thStyle}>FG</th><th style={thStyle}>FG%</th>
+                <th style={thStyle}>3PT</th><th style={thStyle}>3PT%</th>
+                <th style={thStyle}>FT</th><th style={thStyle}>FT%</th>
+                <th style={thStyle}>TO</th><th style={thStyle}>ORB</th><th style={thStyle}>DRB</th><th style={thStyle}>REB</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={Object.assign({},tdStyle,{textAlign:'left',fontWeight:700,color:T.t2})}>{oppName||'OPP'}</td>
+                <td style={hdStyle}>{oppTotals.pts}</td>
+                <td style={tdStyle}>{oppTotals.fgm}-{oppTotals.fga}</td>
+                <td style={tdStyle}>{fmtPct(oppTotals.fgm,oppTotals.fga)}</td>
+                <td style={tdStyle}>{oppTotals.fg3m}-{oppTotals.fg3a}</td>
+                <td style={tdStyle}>{fmtPct(oppTotals.fg3m,oppTotals.fg3a)}</td>
+                <td style={tdStyle}>{oppTotals.ftm}-{oppTotals.fta}</td>
+                <td style={tdStyle}>{fmtPct(oppTotals.ftm,oppTotals.fta)}</td>
+                <td style={tdStyle}>{oppTotals.to}</td>
+                <td style={tdStyle}>{oppTotals.oReb}</td>
+                <td style={tdStyle}>{oppTotals.dReb}</td>
+                <td style={tdStyle}>{oppTotals.oReb+oppTotals.dReb}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Play By Play Modal ──────────────────────────────────────────────────────────
+function PlayByPlayModal(props){
+  var gs=props.gs,players=props.players,pNames=props.pNames,onClose=props.onClose,onApply=props.onApply;
+  var editEntryState=useState(null);var editEntry=editEntryState[0],setEditEntry=editEntryState[1];
+  var editStepState=useState(null);var editStep=editStepState[0],setEditStep=editStepState[1];
+  var log=gs.playLog||[];
+  function isShot(a){return a&&(a.startsWith('Made ')||a.startsWith('Missed '));}
+  function isFTAction(a){return a&&(a.includes('Free Throw')||a.includes('FT'));}
+  function getStatKey(a){return STAT_LABEL_TO_KEY[a]||null;}
+  function findPid(num){var p=players.find(function(pl){return pl.number===num;});return p?p.id:null;}
+  function reverseEntry(g,entry){
+    var qIdx=(entry.q||1)-1;
+    if(entry.team==='home'){
+      var pid=findPid(entry.player);if(!pid||!g.pdata[pid]) return g;
+      if(isShot(entry.action)){
+        var make=entry.action.startsWith('Made');var ft2=isFTAction(entry.action);
+        var sType=entry.action.replace('Made ','').replace('Missed ','');
+        var newQs=g.pdata[pid].qs.map(function(qd,i){
+          if(i!==qIdx) return qd;
+          if(ft2){var sh2=qd.ftShots||[];var ri2=-1;for(var j2=sh2.length-1;j2>=0;j2--){if(sh2[j2].make===make){ri2=j2;break;}}return ri2>=0?Object.assign({},qd,{ftShots:sh2.filter(function(_,k){return k!==ri2;})}):qd;}
+          var sh=qd.shots||[];var ri=-1;for(var j=sh.length-1;j>=0;j--){if(sh[j].make===make&&sh[j].type===sType){ri=j;break;}}
+          return ri>=0?Object.assign({},qd,{shots:sh.filter(function(_,k){return k!==ri;})}):qd;
+        });
+        var np=Object.assign({},g.pdata);np[pid]=Object.assign({},g.pdata[pid],{qs:newQs});return Object.assign({},g,{pdata:np});
+      } else {
+        var sk=getStatKey(entry.action);if(!sk) return g;
+        var newQs2=g.pdata[pid].qs.map(function(qd,i){return i===qIdx?Object.assign({},qd,{[sk]:Math.max(0,(qd[sk]||0)-1)}):qd;});
+        var np2=Object.assign({},g.pdata);np2[pid]=Object.assign({},g.pdata[pid],{qs:newQs2});return Object.assign({},g,{pdata:np2});
+      }
+    } else {
+      var make2=entry.action.startsWith('Made');var label=entry.action.replace('Made ','').replace('Missed ','');
+      var newOppQs=(g.oppQs||[]).map(function(qd,i){
+        if(i!==qIdx) return qd;
+        if(label==='3PT') return Object.assign({},qd,{fg3a:Math.max(0,(qd.fg3a||0)-1),fg3m:make2?Math.max(0,(qd.fg3m||0)-1):(qd.fg3m||0)});
+        if(label==='FT'||label.includes('Free Throw')) return Object.assign({},qd,{fta:Math.max(0,(qd.fta||0)-1),ftm:make2?Math.max(0,(qd.ftm||0)-1):(qd.ftm||0)});
+        return Object.assign({},qd,{fg2a:Math.max(0,(qd.fg2a||0)-1),fg2m:make2?Math.max(0,(qd.fg2m||0)-1):(qd.fg2m||0)});
+      });
+      return Object.assign({},g,{oppQs:newOppQs});
+    }
+  }
+  function applyHomeStat(g,sk,qIdx,pid){var nq=g.pdata[pid].qs.map(function(qd,i){return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;});var np=Object.assign({},g.pdata);np[pid]=Object.assign({},g.pdata[pid],{qs:nq});return Object.assign({},g,{pdata:np});}
+  function applyOppStat(g,sk,qIdx){var nq=(g.oppQs||[]).map(function(qd,i){return i===qIdx?Object.assign({},qd,{[sk]:(qd[sk]||0)+1}):qd;});return Object.assign({},g,{oppQs:nq});}
+  // Reconstruct running score
+  var myRunning=0,oppRunning=0;
+  var enriched=log.map(function(entry){
+    if(!entry.voided){if(entry.team==='home') myRunning+=(entry.pts||0);else if(entry.team==='opp') oppRunning+=(entry.pts||0);}
+    return Object.assign({},entry,{_myScore:myRunning,_oppScore:oppRunning});
+  });
+  var displayLog=enriched.slice().reverse();
+  var currentQ=gs.q||1;
+  function isLocked(entry){return (entry.q||1)<currentQ;}
+  function doVoidDelete(entry){
+    var ng;
+    if(isLocked(entry)){
+      ng=reverseEntry(gs,entry);
+      var nl=(ng.playLog||[]).map(function(x){return x.id===entry.id?Object.assign({},x,{voided:true}):x;});
+      ng=Object.assign({},ng,{playLog:nl});
+    } else {
+      ng=reverseEntry(gs,entry);
+      ng=Object.assign({},ng,{playLog:(ng.playLog||[]).filter(function(x){return x.id!==entry.id;})});
+    }
+    onApply(ng);setEditEntry(null);setEditStep(null);
+  }
+  function doChangePlayer(newPid){
+    var e=editEntry;var qIdx=(e.q||1)-1;var sk=getStatKey(e.action);var ng=gs;var ne=Object.assign({},e);
+    if(sk){ng=reverseEntry(gs,e);ng=applyHomeStat(ng,sk,qIdx,newPid);var np3=players.find(function(p){return p.id===newPid;});ne=Object.assign({},ne,{player:np3?np3.number:e.player});}
+    var nl=(ng.playLog||[]).map(function(x){return x.id===e.id?ne:x;});ng=Object.assign({},ng,{playLog:nl});
+    onApply(ng);setEditEntry(null);setEditStep(null);
+  }
+  function doChangeToOpp(){
+    var e=editEntry;var qIdx=(e.q||1)-1;var sk=getStatKey(e.action);if(!sk) return;
+    var ng=reverseEntry(gs,e);ng=applyOppStat(ng,sk,qIdx);
+    var ne=Object.assign({},e,{team:'opp',player:'Opponent'});
+    var nl=(ng.playLog||[]).map(function(x){return x.id===e.id?ne:x;});ng=Object.assign({},ng,{playLog:nl});
+    onApply(ng);setEditEntry(null);setEditStep(null);
+  }
+  function doChangeStat(newSk){
+    var e=editEntry;var qIdx=(e.q||1)-1;var pid=findPid(e.player);if(!pid) return;
+    var ng=reverseEntry(gs,e);ng=applyHomeStat(ng,newSk,qIdx,pid);
+    var nl2=GSTATS.find(function(g){return g.key===newSk;})||{label:newSk};
+    var ne=Object.assign({},e,{action:nl2.label});
+    var nl=(ng.playLog||[]).map(function(x){return x.id===e.id?ne:x;});ng=Object.assign({},ng,{playLog:nl});
+    onApply(ng);setEditEntry(null);setEditStep(null);
+  }
+  var rowStyle={padding:'10px 12px',borderBottom:'1px solid '+T.border+'44',display:'flex',alignItems:'center',gap:10,cursor:'pointer'};
+  var isSub=function(a){return a==='SUB IN'||a==='SUB OUT';};
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:999,display:'flex',flexDirection:'column'}} onClick={function(){if(!editStep) onClose();}}>
+      <div style={{flex:1,display:'flex',flexDirection:'column',maxHeight:'100%'}} onClick={function(e){e.stopPropagation();}}>
+        <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',flexShrink:0}}>
+          <div style={{fontSize:16,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>📋 Play by Play</div>
+          <button onClick={onClose} style={{background:T.bg,border:'1px solid '+T.border,color:T.t2,fontSize:20,width:36,height:36,borderRadius:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>×</button>
+        </div>
+        {!editEntry&&(
+          <div style={{flex:1,overflowY:'auto',background:T.bg}}>
+            {displayLog.length===0&&<div style={{textAlign:'center',padding:'32px',color:T.t4,fontSize:13}}>No plays recorded yet.</div>}
+            {displayLog.map(function(entry){
+              var locked=isLocked(entry);
+              var isOpp=entry.team==='opp';
+              var sub=isSub(entry.action);
+              var voided=entry.voided;
+              var pLabel=isOpp?'OPP':'#'+entry.player;
+              var eColor=voided?T.t4:sub?T.t3:isOpp?T.red:T.accent;
+              var scoreLabel=entry._myScore+' — '+entry._oppScore;
+              return (
+                <div key={entry.id} onClick={function(){if(!voided) setEditEntry(entry);}} style={Object.assign({},rowStyle,{background:voided?T.bg:sub?T.card+'88':'transparent',opacity:voided?0.4:1,cursor:voided?'default':'pointer'})}>
+                  <div style={{width:38,height:38,borderRadius:8,background:eColor+'18',border:'1px solid '+eColor+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:900,color:eColor,flexShrink:0}}>{pLabel}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:T.t1,textDecoration:voided?'line-through':'none'}}>{entry.action}</div>
+                    <div style={{fontSize:10,color:T.t4,marginTop:1}}>{pNames[(entry.q||1)-1]}{sub?' · Substitution':''}{voided?' · VOIDED':''}</div>
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontSize:13,fontWeight:800,color:T.t1}}>{scoreLabel}</div>
+                    <div style={{fontSize:9,color:T.t4,letterSpacing:1}}>{locked?'🔒':'✏️'}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {editEntry&&!editStep&&(
+          <div style={{flex:1,overflowY:'auto',padding:20,background:T.bg}}>
+            <button onClick={function(){setEditEntry(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+            <div style={{background:T.card,borderRadius:12,padding:'12px 14px',border:'1px solid '+T.border,marginBottom:16}}>
+              <div style={{fontSize:11,color:T.t4,marginBottom:3}}>Selected play</div>
+              <div style={{fontSize:14,fontWeight:700,color:T.t1}}>{editEntry.team==='opp'?'OPP':'#'+editEntry.player} · {editEntry.action} · {pNames[(editEntry.q||1)-1]}</div>
+              {isLocked(editEntry)&&<div style={{fontSize:11,color:'#d97706',marginTop:6}}>🔒 Previous quarter — delete only</div>}
+            </div>
+            <button onClick={function(){doVoidDelete(editEntry);}} style={{width:'100%',padding:'14px',borderRadius:12,border:'none',background:T.red,color:'#fff',fontSize:14,fontWeight:900,cursor:'pointer',letterSpacing:2,textTransform:'uppercase',marginBottom:12}}>🗑 {isLocked(editEntry)?'Void This Play':'Delete This Play'}</button>
+            {!isLocked(editEntry)&&editEntry.team==='home'&&!isSub(editEntry.action)&&(
+              <button onClick={function(){setEditStep('editPlayer');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',marginBottom:8,textAlign:'left'}}>👤 Change Player</button>
+            )}
+            {!isLocked(editEntry)&&!isSub(editEntry.action)&&getStatKey(editEntry.action)&&(
+              <button onClick={function(){setEditStep('editStat');}} style={{width:'100%',padding:'14px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left'}}>📝 Change Stat Type</button>
+            )}
+          </div>
+        )}
+        {editEntry&&editStep==='editPlayer'&&(
+          <div style={{flex:1,overflowY:'auto',padding:20,background:T.bg}}>
+            <button onClick={function(){setEditStep(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+            <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Move to which player?</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+              {players.filter(function(p){return p.number!==editEntry.player;}).map(function(p){var col=T.accent;return (<button key={p.id} onClick={function(){doChangePlayer(p.id);}} style={{height:64,borderRadius:12,border:'2.5px solid '+col,background:col+'18',color:col,fontSize:26,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>{p.number}</button>);})}
+            </div>
+            {getStatKey(editEntry.action)&&OPP_ELIGIBLE_STATS.indexOf(getStatKey(editEntry.action))>-1&&<button onClick={doChangeToOpp} style={{width:'100%',padding:'13px',borderRadius:12,border:'2px solid '+T.t4,background:T.bg,color:T.t2,fontSize:13,fontWeight:700,cursor:'pointer',textTransform:'uppercase',letterSpacing:2,marginBottom:8}}>🆚 Opponent</button>}
+          </div>
+        )}
+        {editEntry&&editStep==='editStat'&&(
+          <div style={{flex:1,overflowY:'auto',padding:20,background:T.bg}}>
+            <button onClick={function(){setEditStep(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,fontWeight:700,letterSpacing:1,textTransform:'uppercase',padding:'0 0 14px',display:'block'}}>← Back</button>
+            <div style={{fontSize:12,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Change to which stat?</div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+              {GSTATS.filter(function(g){return g.key!==getStatKey(editEntry.action);}).map(function(g){return (<button key={g.key} onClick={function(){doChangeStat(g.key);}} style={{padding:'12px',borderRadius:10,border:'1px solid '+g.color+'55',background:g.color+'18',color:g.color,fontSize:13,fontWeight:900,cursor:'pointer',textTransform:'uppercase',letterSpacing:1}}>{g.label}</button>);})}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Undo Popup ─────────────────────────────────────────────────────────────────
 var STAT_LABEL_TO_KEY={'O REB':'oReb','D REB':'dReb','TO':'to','AST':'ast','BLK':'blk','STL':'stl','FOUL':'foul'};
@@ -1654,7 +2019,8 @@ function MicBtn(props){
 
 // ── Live Box Score ────────────────────────────────────────────────────────────
 function LiveBoxScore(props){
-  var players=props.players,gs=props.gs,myScore=props.myScore,oppScore=props.oppScore,open=props.open,onToggle=props.onToggle;
+  var players=props.players,gs=props.gs,open=props.open,onToggle=props.onToggle,myScore=props.myScore,oppScore=props.oppScore;
+  function livePct(m,a){return a>0?Math.round(m/a*100)+'%':'—';}
   var rows=players.map(function(p){
     var pd=gs.pdata[p.id];
     if(!pd||!hasDraftQ(pd.qs)) return null;
@@ -1663,34 +2029,29 @@ function LiveBoxScore(props){
     var pts=calcPts(allSh,allFT);
     var totStats={};
     GSTATS.forEach(function(g){totStats[g.key]=pd.qs.reduce(function(a,q){return a+(q[g.key]||0);},0);});
-    var fg2sh=allSh.filter(function(s){return s.type!=='3-Pointer';});
-    var fg3sh=allSh.filter(function(s){return s.type==='3-Pointer';});
-    var fg2m=fg2sh.filter(function(s){return s.make;}).length;
-    var fg3m=fg3sh.filter(function(s){return s.make;}).length;
-    var ftm=allFT.filter(function(s){return s.make;}).length;
-    var fgm=allSh.filter(function(s){return s.make;}).length;
-    var fgPct=allSh.length>0?Math.round(fgm/allSh.length*100)+'%':'—';
-    var fg3Pct=fg3sh.length>0?Math.round(fg3m/fg3sh.length*100)+'%':'—';
-    var ftPct=allFT.length>0?Math.round(ftm/allFT.length*100)+'%':'—';
     var reb=totStats.oReb+totStats.dReb;
     var active=pd.active!==false;
-    // Live +/-: close any open stint against current score
-    var liveStints=(gs.stints[p.id]||[]).map(function(s){
-      return s.e_my===undefined?Object.assign({},s,{e_my:myScore,e_opp:oppScore}):s;
-    });
+    var fg2sh=allSh.filter(function(s){return s.type==='2';});
+    var fg3sh=allSh.filter(function(s){return s.type==='3';});
+    var fgMakes=allSh.filter(function(s){return s.make;}).length;
+    var fg3Makes=fg3sh.filter(function(s){return s.make;}).length;
+    var ftMakes=allFT.filter(function(s){return s.make;}).length;
+    var fgStr=fgMakes+'-'+allSh.length;
+    var fgPct=livePct(fgMakes,allSh.length);
+    var fg3Str=fg3Makes+'-'+fg3sh.length;
+    var fg3Pct=livePct(fg3Makes,fg3sh.length);
+    var ftStr=ftMakes+'-'+allFT.length;
+    var ftPct=livePct(ftMakes,allFT.length);
+    var liveStints=(gs.stints[p.id]||[]).map(function(s){return s.e_my===undefined?Object.assign({},s,{e_my:myScore,e_opp:oppScore}):s;});
     var pm=calcPlusMinus(liveStints,myScore,oppScore);
-    return {p:p,pts:pts,
-      fgStr:fgm+'-'+allSh.length,fgPct:fgPct,
-      fg3Str:fg3m+'-'+fg3sh.length,fg3Pct:fg3Pct,
-      ftStr:ftm+'-'+allFT.length,ftPct:ftPct,
-      oReb:totStats.oReb,dReb:totStats.dReb,reb:reb,
-      ast:totStats.ast,stl:totStats.stl,blk:totStats.blk,to:totStats.to,pf:totStats.foul,
-      pm:pm,active:active};
+    return {p:p,pts:pts,pf:totStats.foul,fgStr:fgStr,fgPct:fgPct,fg3Str:fg3Str,fg3Pct:fg3Pct,ftStr:ftStr,ftPct:ftPct,to:totStats.to,oReb:totStats.oReb,dReb:totStats.dReb,reb:reb,ast:totStats.ast,stl:totStats.stl,blk:totStats.blk,pm:pm,active:active};
   }).filter(Boolean).sort(function(a,b){return parseNum(a.p.number)-parseNum(b.p.number);});
 
   if(rows.length===0) return null;
 
-  var th={textAlign:'center',padding:'4px 5px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'};
+  var thStyle={textAlign:'center',padding:'4px 4px',color:T.t4,fontWeight:700,fontSize:8,textTransform:'uppercase'};
+  var thLeft={textAlign:'left',padding:'4px 4px',color:T.t4,fontWeight:700,fontSize:8,textTransform:'uppercase'};
+
   return (
     <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
       <button onClick={onToggle} style={{width:'100%',padding:'10px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',background:'none',border:'none',cursor:'pointer'}}>
@@ -1699,53 +2060,53 @@ function LiveBoxScore(props){
       </button>
       {open&&(
         <div style={{overflowX:'auto',padding:'0 4px 10px'}}>
-          <table style={{width:'100%',borderCollapse:'collapse',fontSize:11,minWidth:680}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:10,minWidth:680}}>
             <thead>
               <tr style={{borderBottom:'1px solid '+T.border}}>
-                <th style={{textAlign:'left',padding:'4px 5px',color:T.t4,fontWeight:700,fontSize:9,textTransform:'uppercase'}}>#</th>
-                <th style={th}>PTS</th>
-                <th style={th}>PF</th>
-                <th style={th}>FG</th>
-                <th style={th}>FG%</th>
-                <th style={th}>3PT</th>
-                <th style={th}>3PT%</th>
-                <th style={th}>FT</th>
-                <th style={th}>FT%</th>
-                <th style={th}>TO</th>
-                <th style={th}>ORB</th>
-                <th style={th}>DRB</th>
-                <th style={th}>REB</th>
-                <th style={th}>AST</th>
-                <th style={th}>STL</th>
-                <th style={th}>BLK</th>
-                <th style={th}>+/−</th>
+                <th style={thLeft}>#</th>
+                <th style={thStyle}>PTS</th>
+                <th style={thStyle}>PF</th>
+                <th style={thStyle}>FG</th>
+                <th style={thStyle}>FG%</th>
+                <th style={thStyle}>3PT</th>
+                <th style={thStyle}>3PT%</th>
+                <th style={thStyle}>FT</th>
+                <th style={thStyle}>FT%</th>
+                <th style={thStyle}>TO</th>
+                <th style={thStyle}>ORB</th>
+                <th style={thStyle}>DRB</th>
+                <th style={thStyle}>REB</th>
+                <th style={thStyle}>AST</th>
+                <th style={thStyle}>STL</th>
+                <th style={thStyle}>BLK</th>
+                <th style={thStyle}>+/−</th>
               </tr>
             </thead>
             <tbody>
               {rows.map(function(r){
                 var pIdx=players.findIndex(function(pl){return pl.id===r.p.id;});
                 var col=pc(r.p,pIdx);
-                var pmStr=r.pm===null?'—':r.pm>0?'+'+r.pm:String(r.pm);
-                var pmCol=r.pm===null?T.t4:r.pm>0?T.green:r.pm<0?T.red:T.t2;
+                var pmStr=r.pm>0?'+'+r.pm:(r.pm===0?'0':String(r.pm));
+                var pmCol=r.pm>0?T.green:r.pm<0?T.red:T.t3;
                 return (
                   <tr key={r.p.id} style={{borderBottom:'1px solid '+T.border,opacity:r.active?1:0.5}}>
-                    <td style={{padding:'5px 5px',fontWeight:900,color:col}}>{r.p.number}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',fontWeight:900,color:T.t1}}>{r.pts}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:r.pf>=5?T.red:T.t2,fontWeight:r.pf>=5?900:400}}>{r.pf}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fgStr}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fgPct}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fg3Str}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.fg3Pct}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.ftStr}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.ftPct}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.to}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.oReb}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.dReb}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.reb}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.ast}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.stl}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',color:T.t2}}>{r.blk}</td>
-                    <td style={{padding:'5px 5px',textAlign:'center',fontWeight:700,color:pmCol}}>{pmStr}</td>
+                    <td style={{padding:'5px 4px',fontWeight:900,color:col}}>{r.p.number}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',fontWeight:900,color:T.t1}}>{r.pts}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:r.pf>=5?T.red:T.t2,fontWeight:r.pf>=5?900:400}}>{r.pf}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.fgStr}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t3}}>{r.fgPct}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.fg3Str}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t3}}>{r.fg3Pct}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.ftStr}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t3}}>{r.ftPct}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.to}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.oReb}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.dReb}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.reb}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.ast}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.stl}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:T.t2}}>{r.blk}</td>
+                    <td style={{padding:'5px 4px',textAlign:'center',color:pmCol,fontWeight:700}}>{pmStr}</td>
                   </tr>
                 );
               })}
@@ -1955,8 +2316,7 @@ function Tracker(props){
   var newNum=newNumState[0],setNewNum=newNumState[1];
   var newNameState=useState('');
   var newName=newNameState[0],setNewName=newNameState[1];
-  var confClearState=useState(false);
-  var confClear=confClearState[0],setConfClear=confClearState[1];
+
   var scoreEditState=useState(false);
   var scoreEditOpen=scoreEditState[0],setScoreEditOpen=scoreEditState[1];
   var pDraftsState=useState({});
@@ -1971,11 +2331,10 @@ function Tracker(props){
   var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showSubState=useState(false);
   var showSub=showSubState[0],setShowSub=showSubState[1];
-  var boxScoreOpenState=useState(true);
-  var boxScoreOpen=boxScoreOpenState[0],setBoxScoreOpen=boxScoreOpenState[1];
-
-  var showUndoPopupState=useState(false);
-  var showUndoPopup=showUndoPopupState[0],setShowUndoPopup=showUndoPopupState[1];
+  var showLiveStatsState=useState(false);
+  var showLiveStats=showLiveStatsState[0],setShowLiveStats=showLiveStatsState[1];
+  var showPlayByPlayState=useState(false);
+  var showPlayByPlay=showPlayByPlayState[0],setShowPlayByPlay=showPlayByPlayState[1];
   var voiceTranscriptState=useState('');
   var voiceTranscript=voiceTranscriptState[0],setVoiceTranscript=voiceTranscriptState[1];
   var voiceStatusState=useState('idle');
@@ -2252,8 +2611,7 @@ function Tracker(props){
   }
 
   function handleUndo(){
-    if(isGame) setShowUndoPopup(true);
-    else{
+    if(!isGame){
       var pDraft=pDrafts[activePid]||{shots:[],ftShots:[]};
       var sh=pDraft.shots||[],ft=pDraft.ftShots||[];
       var lG=sh.length>0?sh[sh.length-1].id:-1,lF=ft.length>0?ft[ft.length-1].id:-1;
@@ -2471,9 +2829,6 @@ function Tracker(props){
             {/* Scoreboard */}
             {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
 
-            {/* Live box score */}
-            {isGame&&<LiveBoxScore players={players} gs={gs} myScore={myScore} oppScore={oppScore} open={boxScoreOpen} onToggle={function(){setBoxScoreOpen(!boxScoreOpen);}}/>}
-
             {/* On-floor player chips */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px'}}>
               <div style={{fontSize:8,color:T.green,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>On Floor {sortedActive.length>0?'('+sortedActive.length+')':''}</div>
@@ -2636,23 +2991,13 @@ function Tracker(props){
               </div>
             )}
 
-            {/* Undo / Clear */}
-            {confClear?(
-              <div style={{background:'#fef2f2',borderRadius:12,padding:'12px 16px',border:'1px solid #fecaca',display:'flex',flexDirection:'column',gap:8}}>
-                <div style={{fontSize:11,color:T.red,fontWeight:700,textAlign:'center'}}>Clear {isGame?pNames[gs.q-1]+' data':'shots'} for #{player?player.number:'?'}?</div>
-                <div style={{display:'flex',gap:8}}>
-                  <button onClick={function(){setConfClear(false);}} style={{flex:1,padding:'10px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:12,cursor:'pointer'}}>Cancel</button>
-                  <button onClick={function(){
-                    if(isGame) setGs(function(g){var newQs=g.pdata[activePid].qs.map(function(q,i){return i===g.q-1?EMPTY_QSTAT():q;});var newPdata=Object.assign({},g.pdata);newPdata[activePid]=Object.assign({},g.pdata[activePid],{qs:newQs});return Object.assign({},g,{pdata:newPdata});});
-                    else setPDrafts(function(p){return Object.assign({},p,{[activePid]:{shots:[],ftShots:[]}});});
-                    setConfClear(false);
-                  }} style={{flex:1,padding:'10px 0',borderRadius:10,border:'none',background:T.red,color:'#fff',fontSize:12,cursor:'pointer',fontWeight:700}}>Clear</button>
-                </div>
-              </div>
-            ):(
-              <div style={{display:'flex',gap:8}}>
-                <button onClick={handleUndo} style={{flex:1,padding:'10px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:12,letterSpacing:1,cursor:'pointer',fontWeight:600,boxShadow:T.shadow}}>↩ Undo</button>
-                <button onClick={function(){var curHasData=isGame?(gs.pdata[activePid]?hasDraftQ(gs.pdata[activePid].qs):false):((pDrafts[activePid]&&(pDrafts[activePid].shots||[]).length>0)||(pDrafts[activePid]&&(pDrafts[activePid].ftShots||[]).length>0));if(curHasData) setConfClear(true);}} style={{flex:1,padding:'10px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.red,fontSize:12,letterSpacing:1,cursor:'pointer',fontWeight:600,boxShadow:T.shadow}}>🗑 Clear</button>
+            {/* Live Stats / Play by Play buttons — game only */}
+            {isGame&&(
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={function(){setShowLiveStats(true);}}
+                  style={{flex:1,padding:'14px 0',borderRadius:12,border:'1.5px solid '+T.accent,background:T.accent+'15',color:T.accent,fontSize:13,fontWeight:800,letterSpacing:1,cursor:'pointer',textTransform:'uppercase',boxShadow:T.shadow}}>📊 Live Stats</button>
+                <button onClick={function(){setShowPlayByPlay(true);}}
+                  style={{flex:1,padding:'14px 0',borderRadius:12,border:'1.5px solid '+T.blue,background:T.blue+'15',color:T.blue,fontSize:13,fontWeight:800,letterSpacing:1,cursor:'pointer',textTransform:'uppercase',boxShadow:T.shadow}}>📋 Play by Play</button>
               </div>
             )}
 
@@ -2684,12 +3029,11 @@ function Tracker(props){
         onCancel={function(){setPlayerPopup(null);}}
       />}
 
-      {/* Undo popup */}
-      {showUndoPopup&&isGame&&<UndoPopup
-        gs={gs} players={players} sortedActive={sortedActive} pNames={pNames}
-        onClose={function(){setShowUndoPopup(false);}}
-        onApply={function(ng){setGs(ng);setShowUndoPopup(false);}}
-      />}
+      {/* Live Stats modal */}
+      {showLiveStats&&isGame&&<LiveStatsModal gs={gs} players={players} myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} numPeriods={numPeriods} pNames={pNames} onClose={function(){setShowLiveStats(false);}}/>}
+
+      {/* Play by Play modal */}
+      {showPlayByPlay&&isGame&&<PlayByPlayModal gs={gs} players={players} pNames={pNames} onClose={function(){setShowPlayByPlay(false);}} onApply={function(ng){setGs(ng);}}/>}
 
       {/* Assist popup */}
       {awaitAssist&&isGame&&<AssistPopup
@@ -2814,8 +3158,7 @@ function generateReport(sessions,players,teamMeta){
     var row={
       num:p.number,name:p.name||'',
       pts:pts,pf:sess.foul||0,
-      fgStr:fgStr(sh),fgPct:calcPct(sh.filter(function(s){return s.make;}).length,sh.length),
-      fg2Str:fg2m+'-'+fg2sh.length,fg3Str:fg3m+'-'+fg3sh.length,fg3Pct:calcPct(fg3m,fg3sh.length),ftStr:ftStr(ft),
+      fgStr:fgStr(sh),fgPct:calcPct(sh.filter(function(s){return s.make;}).length,sh.length),fg2Str:fg2m+'-'+fg2sh.length,fg3Str:fg3m+'-'+fg3sh.length,fg3Pct:calcPct(fg3m,fg3sh.length),ftStr:ftStr(ft),
       to:sess.to||0,oReb:sess.oReb||0,dReb:sess.dReb||0,reb:(sess.oReb||0)+(sess.dReb||0),
       ast:sess.ast||0,stl:sess.stl||0,blk:sess.blk||0,pm:sess.plusMinus!=null?sess.plusMinus:0
     };
@@ -2904,12 +3247,8 @@ function generateReport(sessions,players,teamMeta){
   }).join('');
 
   var totPmStr='0';
-  var totFgA=teamTotals.fg2a+teamTotals.fg3a;
-  var totFgM=teamTotals.fg2m+teamTotals.fg3m;
-  var totFgStr=totFgM+'-'+totFgA;
-  var totFgPct=calcPct(totFgM,totFgA);
+  var totFgStr=teamTotals.fg2m+teamTotals.fg3m+'-'+(teamTotals.fg2a+teamTotals.fg3a);
   var totFg3Str=teamTotals.fg3m+'-'+teamTotals.fg3a;
-  var totFg3Pct=calcPct(teamTotals.fg3m,teamTotals.fg3a);
   var totFtStr=teamTotals.ftm+'-'+teamTotals.fta;
   var totReb=teamTotals.oReb+teamTotals.dReb;
 
@@ -3040,7 +3379,7 @@ function generateReport(sessions,players,teamMeta){
     '<tr class="totals">'+
       '<td class="left">Totals</td>'+
       '<td>'+teamTotals.pts+'</td><td>'+teamTotals.pf+'</td>'+
-      '<td>'+totFgStr+'</td><td>'+totFgPct+'</td><td>'+totFg3Str+'</td><td>'+totFg3Pct+'</td><td>'+totFtStr+'</td>'+
+      '<td>'+totFgStr+'</td><td>'+calcPct(teamTotals.fg2m+teamTotals.fg3m,teamTotals.fg2a+teamTotals.fg3a)+'</td><td>'+totFg3Str+'</td><td>'+calcPct(teamTotals.fg3m,teamTotals.fg3a)+'</td><td>'+totFtStr+'</td>'+
       '<td>'+teamTotals.to+'</td><td>'+teamTotals.oReb+'</td><td>'+teamTotals.dReb+'</td><td>'+totReb+'</td>'+
       '<td>'+teamTotals.ast+'</td><td>'+teamTotals.stl+'</td><td>'+teamTotals.blk+'</td><td>0</td>'+
     '</tr></tbody></table>'+
