@@ -117,7 +117,7 @@ function fmtTime12(t){if(!t) return '';var p=t.split(':'),h=parseInt(p[0]),m=par
 function calcArrival(t,off){if(!t||!off) return '';var p=t.split(':'),h=parseInt(p[0]),m=parseInt(p[1]||0);var tot=h*60+m-parseInt(off);if(tot<0) tot+=1440;var ah=Math.floor(tot/60)%24,am=tot%60;var per=ah>=12?'PM':'AM',dh=ah>12?ah-12:ah===0?12:ah;return dh+':'+(am<10?'0'+am:am)+' '+per;}
 function mapsUrl(venue){return 'https://maps.google.com/?q='+encodeURIComponent(venue);}
 function emptyCoach(){return {name:'',email:'',cell:''};}
-function emptyEvent(type){return {id:uid(),type:type||'Game',date:todayStr(),time:'10:00',arrivalOffset:30,venue:'',opponent:'',homeAway:'Home',numPeriods:4,notes:'',createdAt:new Date().toISOString()};}
+function emptyEvent(type){return {id:uid(),type:type||'Game',date:todayStr(),time:'10:00',arrivalOffset:30,venue:'',opponent:'',homeAway:'Home',numPeriods:4,toH1:1,toH2:2,notes:'',createdAt:new Date().toISOString()};}
 function SKsched(id){return 'bball-sched-v6-'+id;}
 function hasDraftQ(qs){
   if(!Array.isArray(qs)) return false;
@@ -1185,11 +1185,13 @@ function EventSetupModal(props){
   var oppState=useState(ev.opponent||'');var opp=oppState[0],setOpp=oppState[1];
   var haState=useState(ev.homeAway||'Home');var ha=haState[0],setHa=haState[1];
   var npState=useState(ev.numPeriods||4);var np=npState[0],setNp=npState[1];
+  var toH1State=useState(ev.toH1||1);var toH1=toH1State[0],setToH1=toH1State[1];
+  var toH2State=useState(ev.toH2||2);var toH2=toH2State[0],setToH2=toH2State[1];
   var notesState=useState(ev.notes||'');var notes=notesState[0],setNotes=notesState[1];
   var isGame=type==='Game';
   var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:14,outline:'none'};
   var lS={fontSize:9,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5,display:'block',marginTop:12};
-  function buildEvent(){return Object.assign({},ev,{type:type,date:date,time:time,arrivalOffset:arr,venue:venue.trim(),opponent:opp.trim()||'Opponent',homeAway:ha,numPeriods:np,notes:notes.trim(),createdAt:ev.createdAt||new Date().toISOString()});}
+  function buildEvent(){return Object.assign({},ev,{type:type,date:date,time:time,arrivalOffset:arr,venue:venue.trim(),opponent:opp.trim()||'Opponent',homeAway:ha,numPeriods:np,toH1:parseInt(toH1)||1,toH2:parseInt(toH2)||2,notes:notes.trim(),createdAt:ev.createdAt||new Date().toISOString()});}
   var arrivalDisplay=time?calcArrival(time,arr):'—';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:999}}>
@@ -1212,6 +1214,10 @@ function EventSetupModal(props){
               <button onClick={function(){setNp(4);}} style={{flex:1,padding:'10px',border:'none',background:np===4?T.accent:'transparent',color:np===4?'#fff':T.t3,fontSize:12,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>4 Quarters</button>
               <button onClick={function(){setNp(2);}} style={{flex:1,padding:'10px',border:'none',background:np===2?T.accent:'transparent',color:np===2?'#fff':T.t3,fontSize:12,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>2 Halves</button>
             </div>
+            <span style={lS}>Timeouts – First Half</span>
+            <input type="number" value={toH1} onChange={function(e){setToH1(e.target.value);}} min={0} max={9} style={Object.assign({},iS,{textAlign:'center',fontSize:18,fontWeight:700})}/>
+            <span style={lS}>Timeouts – Second Half</span>
+            <input type="number" value={toH2} onChange={function(e){setToH2(e.target.value);}} min={0} max={9} style={Object.assign({},iS,{textAlign:'center',fontSize:18,fontWeight:700})}/>
           </React.Fragment>}
           <div style={{display:'flex',gap:12}}>
             <div style={{flex:1}}><span style={lS}>Date</span><input type="date" value={date} onChange={function(e){setDate(e.target.value);}} style={iS}/></div>
@@ -1351,7 +1357,7 @@ function SessionTypeScreen(props){
   }
   function handleEventStart(ev){
     setEvSetupType(null);setEditEv(null);setViewEv(null);
-    onStartSession(ev.type,{opponent:ev.opponent||'Opponent',numPeriods:ev.numPeriods||4});
+    onStartSession(ev.type,{opponent:ev.opponent||'Opponent',numPeriods:ev.numPeriods||4,toH1:ev.toH1||1,toH2:ev.toH2||2});
   }
   function handleDeleteEvent(id){saveSchedule(schedule.filter(function(e){return e.id!==id;}));setViewEv(null);}
 
@@ -2272,11 +2278,51 @@ function PlayerPopup(props){
   );
 }
 
+// ── Timeout Strip ─────────────────────────────────────────────────────────────
+function TimeoutStrip(props){
+  var mySlots=props.mySlots,oppSlots=props.oppSlots;
+  var setMySlots=props.setMySlots,setOppSlots=props.setOppSlots;
+  var myName=props.myName,oppName=props.oppName;
+  var onLog=props.onLog;
+  function toggleMy(i){
+    var next=mySlots.map(function(v,idx){return idx===i?!v:v;});
+    setMySlots(next);
+    onLog('my',i,!mySlots[i]);
+  }
+  function toggleOpp(i){
+    var next=oppSlots.map(function(v,idx){return idx===i?!v:v;});
+    setOppSlots(next);
+    onLog('opp',i,!oppSlots[i]);
+  }
+  var stripStyle={background:'#1e3a5f',borderRadius:10,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8};
+  var labelStyle={fontSize:9,color:'rgba(255,255,255,0.7)',fontWeight:700,letterSpacing:1,textTransform:'uppercase',textAlign:'center',marginBottom:3};
+  var btnStyle=function(used){return {width:28,height:28,borderRadius:6,border:'2px solid '+(used?'#f59e0b':'rgba(255,255,255,0.3)'),background:used?'#f59e0b':'transparent',cursor:'pointer',transition:'all 0.15s'};};
+  return (
+    <div style={stripStyle}>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <div style={labelStyle}>{myName||'US'}</div>
+        <div style={{display:'flex',gap:4}}>
+          {mySlots.map(function(used,i){return <button key={i} onClick={function(){toggleMy(i);}} style={btnStyle(used)}/>;} )}
+        </div>
+      </div>
+      <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,letterSpacing:2}}>TIMEOUT</div>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
+        <div style={labelStyle}>{oppName||'OPP'}</div>
+        <div style={{display:'flex',gap:4}}>
+          {oppSlots.map(function(used,i){return <button key={i} onClick={function(){toggleOpp(i);}} style={btnStyle(used)}/>;} )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Tracker ───────────────────────────────────────────────────────────────
 function Tracker(props){
   var teamMeta=props.teamMeta,sessionType=props.sessionType,opponent=props.opponent;
   var initPlayers=props.players,initSessions=props.sessions;
   var numPeriods=props.numPeriods||4;
+  var toH1Cfg=props.toH1||1;
+  var toH2Cfg=props.toH2||2;
   var onBack=props.onBack,onPersist=props.onPersist;
   var isLandscape=useIsLandscape();
   var SK=TK(teamMeta.id);
@@ -2335,6 +2381,14 @@ function Tracker(props){
   var showLiveStats=showLiveStatsState[0],setShowLiveStats=showLiveStatsState[1];
   var showPlayByPlayState=useState(false);
   var showPlayByPlay=showPlayByPlayState[0],setShowPlayByPlay=showPlayByPlayState[1];
+  var myToH1State=useState(function(){return Array(toH1Cfg).fill(false);});
+  var myToH1=myToH1State[0],setMyToH1=myToH1State[1];
+  var myToH2State=useState(function(){return Array(toH2Cfg).fill(false);});
+  var myToH2=myToH2State[0],setMyToH2=myToH2State[1];
+  var oppToH1State=useState(function(){return Array(toH1Cfg).fill(false);});
+  var oppToH1=oppToH1State[0],setOppToH1=oppToH1State[1];
+  var oppToH2State=useState(function(){return Array(toH2Cfg).fill(false);});
+  var oppToH2=oppToH2State[0],setOppToH2=oppToH2State[1];
   var voiceTranscriptState=useState('');
   var voiceTranscript=voiceTranscriptState[0],setVoiceTranscript=voiceTranscriptState[1];
   var voiceStatusState=useState('idle');
@@ -2804,30 +2858,10 @@ function Tracker(props){
         <div style={{fontSize:20,fontWeight:900,color:T.t1,letterSpacing:3,textTransform:'uppercase',lineHeight:1}}>{isGame?'🏆 Game':'🏋️ Practice'}{isGame&&opponent?<span style={{fontSize:12,color:T.t3,fontWeight:400,marginLeft:8}}>vs {opponent}</span>:null}</div>
       </div>
 
-      {/* Tabs */}
-      <div style={{width:'100%',display:'flex',gap:8,alignItems:'center',marginBottom:10}}>
-        <div style={{display:'flex',background:T.card,borderRadius:12,border:'1px solid '+T.border,overflow:'hidden',flex:1,boxShadow:T.shadow}}>
-          {(isGame?[['today','🏆 Game'],['log','📋 Log'],['history','📅 History']]:[['today','🏋️ Practice'],['history','📅 History']]).map(function(item){
-            var key=item[0],lbl=item[1];
-            return (
-              <button key={key} onClick={function(){setView(key);}}
-                style={{flex:1,padding:'10px 0',border:'none',cursor:'pointer',background:view===key?T.accent:'transparent',color:view===key?'#fff':T.t3,fontSize:10,letterSpacing:1,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s',whiteSpace:'nowrap'}}>
-                {lbl}
-                {key==='history'&&sessions.length>0&&<span style={{marginLeft:4,background:view==='history'?'rgba(255,255,255,0.3)':T.accent,color:'#fff',borderRadius:10,fontSize:8,padding:'1px 5px',fontWeight:900}}>{sessions.length}</span>}
-                {key==='log'&&(gs.playLog||[]).length>0&&<span style={{marginLeft:4,background:view==='log'?'rgba(255,255,255,0.3)':T.accent,color:'#fff',borderRadius:10,fontSize:8,padding:'1px 5px',fontWeight:900}}>{(gs.playLog||[]).length}</span>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* TODAY VIEW */}
       {view==='today'&&(function(){
         return (
           <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
-
-            {/* Scoreboard */}
-            {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
 
             {/* On-floor player chips */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px'}}>
@@ -2882,6 +2916,32 @@ function Tracker(props){
                   background:T.bg,color:T.t2,fontSize:12,fontWeight:700,letterSpacing:2,cursor:'pointer',
                   textTransform:'uppercase',boxShadow:'none'}}>🔄 Substitution</button>
             </div>
+
+            {/* Timeout strip */}
+            {isGame&&(function(){
+              var isFirstHalf=gs.q<=2;
+              var mySlots=isFirstHalf?myToH1:myToH2;
+              var setMySlots=isFirstHalf?setMyToH1:setMyToH2;
+              var oppSlots=isFirstHalf?oppToH1:oppToH2;
+              var setOppSlots=isFirstHalf?setOppToH1:setOppToH2;
+              function handleToLog(team,idx,used){
+                if(used){
+                  var entry={id:Date.now().toString()+'-to',q:gs.q,team:team,player:null,action:'Timeout',pts:0,ts:new Date().toISOString()};
+                  setGs(function(g){return Object.assign({},g,{playLog:(g.playLog||[]).concat([entry])});});
+                } else {
+                  setGs(function(g){
+                    var log=g.playLog||[];
+                    var idx2=log.map(function(_,i){return i;}).reverse().find(function(i){return log[i].action==='Timeout'&&log[i].team===team;});
+                    if(idx2===undefined) return g;
+                    return Object.assign({},g,{playLog:log.filter(function(_,i){return i!==idx2;})});
+                  });
+                }
+              }
+              return <TimeoutStrip mySlots={mySlots} oppSlots={oppSlots} setMySlots={setMySlots} setOppSlots={setOppSlots} myName={teamMeta.name} oppName={opponent} onLog={handleToLog}/>;
+            })()}
+
+            {/* Scoreboard */}
+            {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
 
             {/* Voice + notice bar */}
             <div style={{display:'flex',alignItems:'center',gap:8,minHeight:44}}>
@@ -2959,6 +3019,7 @@ function Tracker(props){
                 <div style={{display:'flex',gap:6}}>
                   {STAT_ROW1.map(function(s){
                     var totVal=getStatTotal(s.key);
+                    var oppQFoul=s.key==='foul'?(gs.oppQs[gs.q-1]?gs.oppQs[gs.q-1].foul||0:0):0;
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
                         style={{flex:1,height:62,borderRadius:10,border:'1px solid '+s.color+'55',
@@ -2967,6 +3028,7 @@ function Tracker(props){
                           position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
                         <div style={{fontSize:13,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
+                        {s.key==='foul'&&oppQFoul>0&&<div style={{position:'absolute',bottom:3,left:5,fontSize:12,fontWeight:900,color:T.t1,opacity:0.7}}>{oppQFoul}</div>}
                         {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
                       </button>
                     );
@@ -3001,6 +3063,22 @@ function Tracker(props){
               </div>
             )}
 
+            {/* Tab bar — bottom */}
+            <div style={{width:'100%',display:'flex',gap:8,alignItems:'center'}}>
+              <div style={{display:'flex',background:T.card,borderRadius:12,border:'1px solid '+T.border,overflow:'hidden',flex:1,boxShadow:T.shadow}}>
+                {(isGame?[['today','🏆 Game'],['history','📅 History']]:[['today','🏋️ Practice'],['history','📅 History']]).map(function(item){
+                  var key=item[0],lbl=item[1];
+                  return (
+                    <button key={key} onClick={function(){setView(key);}}
+                      style={{flex:1,padding:'10px 0',border:'none',cursor:'pointer',background:view===key?T.accent:'transparent',color:view===key?'#fff':T.t3,fontSize:10,letterSpacing:1,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s',whiteSpace:'nowrap'}}>
+                      {lbl}
+                      {key==='history'&&sessions.length>0&&<span style={{marginLeft:4,background:view==='history'?'rgba(255,255,255,0.3)':T.accent,color:'#fff',borderRadius:10,fontSize:8,padding:'1px 5px',fontWeight:900}}>{sessions.length}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Save Session */}
             <button onClick={function(){if(anyData) setSaving(true);}} disabled={!anyData}
               style={{width:'100%',padding:'16px 0',borderRadius:14,border:'none',background:anyData?T.accent:'#e5e7eb',color:anyData?'#fff':T.t4,fontSize:14,fontWeight:900,letterSpacing:4,cursor:anyData?'pointer':'default',textTransform:'uppercase',boxShadow:anyData?'0 4px 20px rgba(255,107,53,0.3)':'none',transition:'all 0.2s'}}>💾 Save Session</button>
@@ -3010,7 +3088,6 @@ function Tracker(props){
       })()}
 
       {view==='history'&&<HistoryView teamMeta={teamMeta} players={players} sessions={sessions} onDelSession={function(id){var ns=sessions.filter(function(s){return s.id!==id;});setSessions(ns);persist(players,ns);}}/>}
-      {view==='log'&&isGame&&<PlayLogView log={gs.playLog||[]} players={players} oppName={opponent}/>}
 
       {scoreEditOpen&&<ScoreEditModal myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} onAdj={function(key,delta){setGs(function(g){var k=key==='my'?'myAdj':'oppAdj';return Object.assign({},g,{[k]:(g[k]||0)+delta});});}} onClose={function(){setScoreEditOpen(false);}}/>}
 
@@ -3671,6 +3748,10 @@ function App(){
   var opponent=opponentState[0],setOpponent=opponentState[1];
   var numPeriodsState=useState(4);
   var numPeriods=numPeriodsState[0],setNumPeriods=numPeriodsState[1];
+  var toH1PropState=useState(1);
+  var toH1Prop=toH1PropState[0],setToH1Prop=toH1PropState[1];
+  var toH2PropState=useState(2);
+  var toH2Prop=toH2PropState[0],setToH2Prop=toH2PropState[1];
 
   function saveTeams(list){setTeams(list);lsSet(TLK,list);}
   function getTeamFullData(id){return lsGet(TK(id))||{players:[],sessions:[],coaches:{head:emptyCoach(),assistants:[]},schedule:[]};}
@@ -3706,6 +3787,8 @@ function App(){
         setSessionType(type);
         setOpponent(type==='Practice'?'':((opts&&opts.opponent)||'Opponent'));
         setNumPeriods((opts&&opts.numPeriods)||4);
+        setToH1Prop((opts&&opts.toH1)||1);
+        setToH2Prop((opts&&opts.toH2)||2);
       }}
       onUpdateData={handleUpdateTeamData}
       onBack={handleBack}
@@ -3721,6 +3804,8 @@ function App(){
       sessionType={sessionType}
       opponent={opponent||''}
       numPeriods={numPeriods}
+      toH1={toH1Prop}
+      toH2={toH2Prop}
       sessions={teamData.sessions||[]}
       onBack={handleBack}
       onPersist={function(u){onMeta(activeTeam.id,u);}}
