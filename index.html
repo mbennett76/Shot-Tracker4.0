@@ -36,6 +36,27 @@ const {useState,useEffect,useRef,useCallback,useMemo}=React;
 function lsGet(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
 function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
+// Returns {used, quota, pct} in bytes; quota=0 means API unavailable
+function lsQuota(){
+  try{
+    if(navigator.storage&&navigator.storage.estimate){
+      return navigator.storage.estimate().then(function(e){return {used:e.usage||0,quota:e.quota||0,pct:e.quota?(e.usage/e.quota*100):0};});
+    }
+  }catch(e){}
+  // Fallback: measure localStorage size by summing key lengths
+  try{
+    var used=0;
+    for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);used+=k.length+(localStorage.getItem(k)||'').length;}
+    return Promise.resolve({used:used*2,quota:5*1024*1024,pct:used*2/(5*1024*1024)*100});
+  }catch(e){return Promise.resolve({used:0,quota:0,pct:0});}
+}
+// Write a tiny emergency snapshot (score + top stats) to a resilient tiny key
+function lsEmergencySnap(key,label,opponent,myScore,oppScore,playerLines){
+  try{
+    var snap={savedAt:new Date().toISOString(),label:label,opponent:opponent,score:myScore+'-'+oppScore,players:playerLines};
+    localStorage.setItem(key,JSON.stringify(snap));
+  }catch(e){}
+}
 
 // ── Landscape hook ─────────────────────────────────────────────────────────────
 function useIsLandscape(){
@@ -2421,17 +2442,35 @@ function Tracker(props){
     return ok;
   },[SK,onPersist]);
 
-  // Auto-draft backup — saves in-progress game every 60s so a failed save can be recovered
+  // Auto-draft backup — saves in-progress game every 30s so a failed save can be recovered
   var DRAFT_KEY='bball-gamedraft-'+teamMeta.id;
+  var SNAP_KEY='bball-snap-'+teamMeta.id; // tiny emergency snapshot
   useEffect(function(){
     if(!isGame) return;
-    function saveDraft(){lsSet(DRAFT_KEY,{gs:gs,players:players,opponent:opponent,numPeriods:numPeriods,savedAt:new Date().toISOString()});}
+    function saveDraft(){
+      lsSet(DRAFT_KEY,{gs:gs,players:players,opponent:opponent,numPeriods:numPeriods,savedAt:new Date().toISOString()});
+      // Also write a tiny emergency snapshot (just score + player names) — much smaller, less likely to fail
+      try{
+        var myS=calcMyScore(gs),oppS=calcOppScore(gs);
+        var lines=players.filter(function(p){return gs.pdata&&gs.pdata[p.id];}).map(function(p){
+          var pd=gs.pdata[p.id];
+          var pts=pd.qs.reduce(function(a,q){return a+calcPts(q.shots||[],q.ftShots||[]);},0);
+          return '#'+p.number+' '+p.name+': '+pts+' pts';
+        });
+        lsEmergencySnap(SNAP_KEY,null,opponent,myS,oppS,lines);
+      }catch(e){}
+      // Check storage level and set warn flag if >80%
+      lsQuota().then(function(q){
+        if(q.pct>80){lsSet('bball-storage-warn',1);}
+        else{lsDel('bball-storage-warn');}
+      });
+    }
     saveDraft();
-    var timer=setInterval(saveDraft,60000);
+    var timer=setInterval(saveDraft,30000);
     return function(){clearInterval(timer);};
   },[gs]);
   // Clear draft on successful save (called from handleSave after verify passes)
-  function clearGameDraft(){lsDel(DRAFT_KEY);}
+  function clearGameDraft(){lsDel(DRAFT_KEY);lsDel(SNAP_KEY);lsDel('bball-storage-warn');}
 
   function calcMyScore(g){
     return players.reduce(function(t,p){
@@ -2794,10 +2833,19 @@ function Tracker(props){
         GSTATS.forEach(function(g){rec[g.key]=0;});ns.unshift(rec);
       });
     }
+    // ── Fire export FIRST (before any write that could fail) ──────────────────
+    // This guarantees the HTML report is in Downloads even if localStorage fails.
+    if(exportAfter&&isGame){
+      var preExportSess=ns.filter(function(s){return s.sessionType==='Game'&&s.label===label&&s.date===date;});
+      if(preExportSess.length>0){
+        try{generateReport(preExportSess,players,teamMeta);}catch(e){}
+      }
+    }
+    // ── Write to storage ──────────────────────────────────────────────────────
     var ok=persist(players,ns);
     if(!ok){
       setSaving(false);
-      alert('⚠️ SAVE FAILED — your device storage is full. Your game data is still open. Please free up storage space (delete old Safari data or other apps) and try saving again. Do NOT close this tab.');
+      alert('⚠️ SAVE FAILED — storage is full or blocked.\n\nYour export was already downloaded (check your Downloads folder).\n\nTo save: free up storage in Safari Settings → Advanced → Website Data, then tap Save again. Do NOT close this tab.');
       return;
     }
     // Verify the write actually landed
@@ -2805,7 +2853,7 @@ function Tracker(props){
     var savedCount=verify&&verify.sessions?verify.sessions.length:0;
     if(savedCount<ns.length){
       setSaving(false);
-      alert('⚠️ SAVE FAILED — the data did not write correctly. Your game data is still open. Try again or take a screenshot of your stats now.');
+      alert('⚠️ SAVE VERIFICATION FAILED — the data may not have written correctly.\n\nYour export was already downloaded (check your Downloads folder).\n\nTry tapping Save again. Do NOT close this tab.');
       return;
     }
     if(isGame) clearGameDraft();
@@ -2815,10 +2863,6 @@ function Tracker(props){
     clearTimeout(ntR.current);
     setNotice({label:'✓ Session saved!',make:true});
     ntR.current=setTimeout(function(){setNotice(null);},2500);
-    if(exportAfter&&isGame){
-      var savedGameSess=ns.filter(function(s){return s.sessionType==='Game'&&s.label===label&&s.date===date;});
-      setTimeout(function(){generateReport(savedGameSess,players,teamMeta);},300);
-    }
   }
 
   function handleAddPlayer(){
@@ -2907,6 +2951,24 @@ function Tracker(props){
                       lsDel(DRAFT_KEY);
                     }} style={{flex:2,padding:'10px',borderRadius:9,border:'none',background:'#f59e0b',color:'#fff',fontSize:12,fontWeight:800,cursor:'pointer'}}>↩ Restore Draft</button>
                     <button onClick={function(){lsDel(DRAFT_KEY);setGs(function(g){return Object.assign({},g);});}} style={{flex:1,padding:'10px',borderRadius:9,border:'1px solid #f59e0b',background:'transparent',color:'#92400e',fontSize:11,fontWeight:700,cursor:'pointer'}}>Discard</button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Low-storage warning for active games */}
+            {isGame&&(function(){
+              var snap=lsGet(SNAP_KEY);
+              // Show warning if last known storage was >80% full
+              // We check indirectly via a flag we set in the draft saver
+              var warnFlag=lsGet('bball-storage-warn');
+              if(!warnFlag) return null;
+              return (
+                <div style={{background:'rgba(220,38,38,0.1)',border:'2px solid #dc2626',borderRadius:12,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+                  <div style={{fontSize:18}}>⚠️</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:12,fontWeight:900,color:'#fca5a5'}}>Storage Nearly Full</div>
+                    <div style={{fontSize:10,color:'rgba(252,165,165,0.8)'}}>Save & Export now — the export downloads to your device even if the history save fails.</div>
                   </div>
                 </div>
               );
@@ -3557,7 +3619,7 @@ var HELP_SECTIONS=[
   {id:'opponent',emoji:'🆚',title:'Opponent Tracking',items:['The opponent panel sits below the Make/Miss buttons.','To record an opponent basket: tap <strong>✓ Make</strong> or <strong>✗ Miss</strong>, then tap <strong>2PT</strong>, <strong>3PT</strong>, or <strong>FT</strong>. The chip highlights to show it is listening.','The four smaller chips — O REB, D REB, TO, FOUL — work the same: tap to add, hold to subtract.','Opponent score updates automatically from recorded baskets.']},
   {id:'log',emoji:'📋',title:'Play Log',items:['During a game tap the <strong>📋 Log</strong> tab to see a running play-by-play.','Every shot, basket, and stat chip tap is recorded with player, quarter, and action.','Quarter dividers auto-insert — End of Q1, Half Time after Q2, etc.','The log is saved with the session and viewable in History.','Tapping Undo removes the last play log entry along with the stat.']},
   {id:'history',emoji:'📅',title:'History and Stats',items:['Tap the <strong>📅 History</strong> tab to see all saved sessions.','Season Overview shows team totals, overall FG%, and Game vs Practice split.','Tap any player to see their individual session history and season chart.','Tap any session to see the court map, quarter breakdown, opponent stats, and play log.','<strong>+/−</strong> tracks the score difference while each player is on the floor.','Tap <strong>📍 Season Chart</strong> to see all shots on one court, filterable by Game or Practice.']},
-  {id:'backup',emoji:'💾',title:'Data Backup',items:['All data is stored locally on your device — no cloud sync.','Tap <strong>📤 Export Backup</strong> on the Team Manager screen regularly.','To move data to a new device: export on the old one, then Import on the new one.','The backup file contains all teams, players, sessions, shots, and play logs.','If you update the app on GitHub, your data is preserved in the browser local storage.']}
+  {id:'backup',emoji:'💾',title:'Data Backup',items:['All data is stored locally on your device — no cloud sync.','<strong>Save &amp; Export</strong> downloads the HTML report to your device BEFORE saving history — so even if storage is full, your report is safe in Downloads.','During a game, a draft backup is auto-saved every 30 seconds. If a save fails, reopen the app and restore the draft.','The storage bar on this screen shows how full your device storage is. Keep it below 70% — clear old Safari data in Settings if needed.','Tap <strong>📤 Export Backup</strong> regularly (especially before games) to keep a full JSON backup of all your data.','To move data to a new device: export on the old one, then Import on the new one.']}
 ];
 
 function HelpModal(props){
@@ -3684,6 +3746,7 @@ function TeamSelector(props){
             <button onClick={function(){if(fileRef.current) fileRef.current.click();}} style={{flex:1,padding:'9px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.blue,fontSize:11,letterSpacing:1,cursor:'pointer',fontWeight:700,boxShadow:T.shadow}}>📥 Import Backup</button>
             <input ref={fileRef} type="file" accept=".json" onChange={handleImportFile} style={{display:'none'}}/>
           </div>
+          <StorageBar/>
           {importMsg&&<div style={{padding:'10px 14px',borderRadius:10,background:importMsg.indexOf('✓')===0?T.greenL:'rgba(220,38,38,0.1)',border:'1px solid '+(importMsg.indexOf('✓')===0?'#86efac':'#fca5a5'),fontSize:12,color:importMsg.indexOf('✓')===0?T.green:T.red,textAlign:'center',fontWeight:700}}>{importMsg}</div>}
           {teams.length===0&&!cr&&(
             <div style={{textAlign:'center',padding:'60px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
@@ -3781,6 +3844,32 @@ function TeamSelector(props){
         </div>
       )}
       {helpOpen&&<HelpModal onClose={function(){setHelpOpen(false);}}/>}
+    </div>
+  );
+}
+
+// ── StorageBar ─────────────────────────────────────────────────────────────────
+function StorageBar(){
+  var infoState=useState(null);var info=infoState[0],setInfo=infoState[1];
+  useEffect(function(){
+    lsQuota().then(function(r){setInfo(r);});
+  },[]);
+  if(!info||info.quota===0) return null;
+  var pct=Math.min(100,Math.round(info.pct));
+  var usedMB=(info.used/1024/1024).toFixed(1);
+  var quotaMB=(info.quota/1024/1024).toFixed(0);
+  var color=pct>85?'#dc2626':pct>65?'#f59e0b':'#22c55e';
+  var warn=pct>85;
+  return (
+    <div style={{background:warn?'rgba(220,38,38,0.08)':'rgba(0,0,0,0.04)',border:'1px solid '+(warn?'rgba(220,38,38,0.3)':'rgba(255,255,255,0.08)'),borderRadius:10,padding:'10px 12px',display:'flex',flexDirection:'column',gap:5}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <span style={{fontSize:10,fontWeight:700,letterSpacing:1,textTransform:'uppercase',color:warn?'#dc2626':'rgba(255,255,255,0.5)'}}>📦 Device Storage</span>
+        <span style={{fontSize:10,fontWeight:700,color:warn?'#dc2626':'rgba(255,255,255,0.5)'}}>{usedMB} MB / {quotaMB} MB</span>
+      </div>
+      <div style={{height:6,background:'rgba(255,255,255,0.1)',borderRadius:3,overflow:'hidden'}}>
+        <div style={{height:'100%',width:pct+'%',background:color,borderRadius:3,transition:'width 0.3s'}}/>
+      </div>
+      {warn&&<div style={{fontSize:10,color:'#fca5a5',fontWeight:700}}>⚠️ Storage is nearly full — export a backup now to avoid losing data.</div>}
     </div>
   );
 }
