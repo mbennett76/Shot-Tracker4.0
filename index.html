@@ -34,7 +34,7 @@ const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 function lsGet(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
-function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
 function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
 
 // ── Landscape hook ─────────────────────────────────────────────────────────────
@@ -2414,11 +2414,24 @@ function Tracker(props){
   var gs=gsState[0],setGs=gsState[1];
 
   var persist=useCallback(function(np,ns){
-    lsSet(SK,{players:np,sessions:ns});
+    var ok=lsSet(SK,{players:np,sessions:ns});
     var allSh=ns.reduce(function(a,s){return a.concat(s.shots||[]);},[] );
     var allFT=ns.reduce(function(a,s){return a.concat(s.ftShots||[]);},[] );
     onPersist({playerCount:np.length,sessionCount:ns.length,totalPoints:calcPts(allSh,allFT)});
+    return ok;
   },[SK,onPersist]);
+
+  // Auto-draft backup — saves in-progress game every 60s so a failed save can be recovered
+  var DRAFT_KEY='bball-gamedraft-'+teamMeta.id;
+  useEffect(function(){
+    if(!isGame) return;
+    function saveDraft(){lsSet(DRAFT_KEY,{gs:gs,players:players,opponent:opponent,numPeriods:numPeriods,savedAt:new Date().toISOString()});}
+    saveDraft();
+    var timer=setInterval(saveDraft,60000);
+    return function(){clearInterval(timer);};
+  },[gs]);
+  // Clear draft on successful save (called from handleSave after verify passes)
+  function clearGameDraft(){lsDel(DRAFT_KEY);}
 
   function calcMyScore(g){
     return players.reduce(function(t,p){
@@ -2781,9 +2794,24 @@ function Tracker(props){
         GSTATS.forEach(function(g){rec[g.key]=0;});ns.unshift(rec);
       });
     }
+    var ok=persist(players,ns);
+    if(!ok){
+      setSaving(false);
+      alert('⚠️ SAVE FAILED — your device storage is full. Your game data is still open. Please free up storage space (delete old Safari data or other apps) and try saving again. Do NOT close this tab.');
+      return;
+    }
+    // Verify the write actually landed
+    var verify=lsGet(SK);
+    var savedCount=verify&&verify.sessions?verify.sessions.length:0;
+    if(savedCount<ns.length){
+      setSaving(false);
+      alert('⚠️ SAVE FAILED — the data did not write correctly. Your game data is still open. Try again or take a screenshot of your stats now.');
+      return;
+    }
+    if(isGame) clearGameDraft();
     setSessions(ns);setPDrafts({});
     if(isGame) setGs(makeInitGS());
-    setSaving(false);setView('history');persist(players,ns);
+    setSaving(false);setView('history');
     clearTimeout(ntR.current);
     setNotice({label:'✓ Session saved!',make:true});
     ntR.current=setTimeout(function(){setNotice(null);},2500);
@@ -2862,6 +2890,27 @@ function Tracker(props){
       {view==='today'&&(function(){
         return (
           <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
+
+            {/* Draft recovery banner */}
+            {isGame&&(function(){
+              var draft=lsGet(DRAFT_KEY);
+              if(!draft||!draft.gs) return null;
+              var draftTime=draft.savedAt?new Date(draft.savedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'unknown';
+              return (
+                <div style={{background:'#fef3c7',border:'2px solid #f59e0b',borderRadius:12,padding:'12px 14px',display:'flex',flexDirection:'column',gap:8}}>
+                  <div style={{fontSize:13,fontWeight:900,color:'#92400e'}}>⚠️ Unsaved Game Draft Found</div>
+                  <div style={{fontSize:11,color:'#78350f'}}>A game in progress was auto-saved at {draftTime}. Did a previous save fail?</div>
+                  <div style={{display:'flex',gap:8}}>
+                    <button onClick={function(){
+                      var d=lsGet(DRAFT_KEY);
+                      if(d&&d.gs){setGs(d.gs);}
+                      lsDel(DRAFT_KEY);
+                    }} style={{flex:2,padding:'10px',borderRadius:9,border:'none',background:'#f59e0b',color:'#fff',fontSize:12,fontWeight:800,cursor:'pointer'}}>↩ Restore Draft</button>
+                    <button onClick={function(){lsDel(DRAFT_KEY);setGs(function(g){return Object.assign({},g);});}} style={{flex:1,padding:'10px',borderRadius:9,border:'1px solid #f59e0b',background:'transparent',color:'#92400e',fontSize:11,fontWeight:700,cursor:'pointer'}}>Discard</button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* On-floor player chips */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px'}}>
