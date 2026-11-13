@@ -2699,11 +2699,6 @@ function Tracker(props){
   }
 
   function handleStatChipTap(statKey){
-    if(statKey==='foul'){
-      // FT chip — open FT modal directly (always active, no make/miss needed first)
-      setFtModal({});
-      return;
-    }
     setPlayerPopup({type:'stat',statKey:statKey});
   }
 
