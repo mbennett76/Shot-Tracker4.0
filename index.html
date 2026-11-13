@@ -2258,6 +2258,112 @@ function SubPopup(props){
 
 // ── Player Popup ───────────────────────────────────────────────────────────────
 var OPP_STAT_KEYS=['oReb','dReb','to','foul','blk','stl','ast'];
+// ── FT Modal ───────────────────────────────────────────────────────────────────
+function FTModal(props){
+  var onFloorPlayers=props.onFloorPlayers,players=props.players;
+  var onDone=props.onDone,onCancel=props.onCancel;
+  // step 1: pick count + player; step 2: shoot
+  var stepState=useState(1);var step=stepState[0],setStep=stepState[1];
+  var countState=useState(null);var ftCount=countState[0],setFtCount=countState[1];
+  var shooterState=useState(null);var shooter=shooterState[0],setShooter=shooterState[1]; // {id,number,isOpp}
+  // results[i] = null | 'make' | 'miss'
+  var resultsState=useState([null,null,null]);var results=resultsState[0],setResults=resultsState[1];
+
+  function pickCountAndShooter(count,sh){
+    setFtCount(count);setShooter(sh);
+    setResults([null,null,null]);
+    setStep(2);
+  }
+  function recordShot(idx,result){
+    var next=results.slice();
+    next[idx]=result;
+    setResults(next);
+    var isLast=idx===ftCount-1;
+    if(isLast){
+      // close and call onDone with the full results
+      onDone(shooter,ftCount,next);
+    }
+  }
+
+  var col='#d97706';
+
+  if(step===1){
+    return (
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
+        <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}} onClick={function(e){e.stopPropagation();}}>
+          <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 16px'}}/>
+          <div style={{fontSize:13,fontWeight:900,color:col,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:16}}>Free Throws — How Many?</div>
+          <div style={{display:'flex',gap:10,marginBottom:20}}>
+            {[1,2,3].map(function(n){
+              return (
+                <button key={n} onClick={function(){setFtCount(n);}}
+                  style={{flex:1,height:64,borderRadius:12,border:'2px solid '+(ftCount===n?col:T.border),background:ftCount===n?col+'22':T.bg,color:ftCount===n?col:T.t3,fontSize:28,fontWeight:900,cursor:'pointer',transition:'all 0.15s'}}>
+                  {n}
+                </button>
+              );
+            })}
+          </div>
+          {ftCount&&(
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:10,textAlign:'center'}}>Who is shooting?</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
+                {onFloorPlayers.map(function(p){
+                  var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+                  var c=pc(p,pIdx);
+                  return (
+                    <button key={p.id} onClick={function(){pickCountAndShooter(ftCount,{id:p.id,number:p.number,isOpp:false});}}
+                      style={{height:68,borderRadius:12,border:'2.5px solid '+c,background:c+'18',color:c,fontSize:28,fontWeight:900,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                      {p.number}
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={function(){pickCountAndShooter(ftCount,{id:null,number:'OPP',isOpp:true});}}
+                style={{width:'100%',padding:'14px',borderRadius:12,border:'2px solid '+T.t4,background:T.bg,color:T.t2,fontSize:14,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',marginBottom:10}}>
+                🆚 Opponent
+              </button>
+            </div>
+          )}
+          <button onClick={onCancel} style={{width:'100%',padding:'11px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t4,fontSize:12,cursor:'pointer',letterSpacing:1}}>Cancel</button>
+        </div>
+      </div>
+    );
+  }
+
+  // step 2: shoot
+  var shooterLabel=shooter.isOpp?'Opponent':'#'+shooter.number;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
+        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 16px'}}/>
+        <div style={{fontSize:13,fontWeight:900,color:col,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>{shooterLabel} — Free Throws</div>
+        <div style={{fontSize:11,color:T.t4,textAlign:'center',marginBottom:18}}>{ftCount} shot{ftCount>1?'s':''} · tap each result</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {Array.from({length:ftCount},function(_,i){
+            var r=results[i];
+            var isMake=r==='make',isMiss=r==='miss';
+            var prevDone=i===0||results[i-1]!==null;
+            return (
+              <div key={i} style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{width:80,fontSize:11,fontWeight:700,color:T.t4,letterSpacing:1,textTransform:'uppercase',flexShrink:0}}>FT {i+1}</div>
+                <button onClick={function(){if(prevDone) recordShot(i,'make');}}
+                  style={{flex:1,padding:'13px 0',borderRadius:10,border:'2px solid '+(isMake?T.green:T.border),background:isMake?T.green:T.card,color:isMake?'#fff':T.t3,fontSize:13,fontWeight:800,cursor:prevDone?'pointer':'default',opacity:prevDone?1:0.4,transition:'all 0.15s',letterSpacing:1}}>
+                  ✓ Make
+                </button>
+                <button onClick={function(){if(prevDone) recordShot(i,'miss');}}
+                  style={{flex:1,padding:'13px 0',borderRadius:10,border:'2px solid '+(isMiss?T.red:T.border),background:isMiss?T.red:T.card,color:isMiss?'#fff':T.t3,fontSize:13,fontWeight:800,cursor:prevDone?'pointer':'default',opacity:prevDone?1:0.4,transition:'all 0.15s',letterSpacing:1}}>
+                  ✗ Miss
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <button onClick={onCancel} style={{width:'100%',padding:'11px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t4,fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:16}}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function PlayerPopup(props){
   var type=props.type,shotType=props.shotType,statKey=props.statKey;
   var onFloorPlayers=props.onFloorPlayers,players=props.players;
@@ -2388,6 +2494,8 @@ function Tracker(props){
   var awaitCourt=awaitCourtState[0],setAwaitCourt=awaitCourtState[1];
   var awaitReboundState=useState(null);
   var awaitRebound=awaitReboundState[0],setAwaitRebound=awaitReboundState[1];
+  var ftModalState=useState(null);
+  var ftModal=ftModalState[0],setFtModal=ftModalState[1];
   var awaitAssistState=useState(false);
   var awaitAssist=awaitAssistState[0],setAwaitAssist=awaitAssistState[1];
   var showSubState=useState(false);
@@ -2591,7 +2699,65 @@ function Tracker(props){
   }
 
   function handleStatChipTap(statKey){
+    if(statKey==='foul'){
+      // FT chip — open FT modal directly (always active, no make/miss needed first)
+      setFtModal({});
+      return;
+    }
     setPlayerPopup({type:'stat',statKey:statKey});
+  }
+
+  function handleFTModalDone(shooter,count,results){
+    // shooter = {id, number, isOpp}
+    // results = array of 'make'|'miss' length count
+    setFtModal(null);
+    var lastResult=results[count-1];
+    if(shooter.isOpp){
+      // Record each opp FT
+      var q=gs.q;
+      setGs(function(g){
+        var totalMakes=results.filter(function(r){return r==='make';}).length;
+        var newQs=(g.oppQs||[]).map(function(qd,i){
+          if(i!==q-1) return qd;
+          return Object.assign({},qd,{ftm:(qd.ftm||0)+totalMakes,fta:(qd.fta||0)+count});
+        });
+        var entries=results.map(function(r,i){
+          return {id:Date.now()+i,q:q,team:'opp',player:'Opponent',action:(r==='make'?'Made ':'Missed ')+'Free Throw ('+(i+1)+' of '+count+')',pts:r==='make'?1:0,ts:new Date().toISOString()};
+        });
+        return Object.assign({},g,{oppQs:newQs,playLog:(g.playLog||[]).concat(entries)});
+      });
+      setNotice({label:'Opp FTs: '+results.filter(function(r){return r==='make';}).length+'/'+count,make:lastResult==='make'});
+      vib(50);
+      clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
+      if(lastResult==='miss') setAwaitRebound({shooter:'opp'});
+    } else {
+      // Record each home player FT
+      var targetPlayer=players.find(function(p){return p.id===shooter.id;});
+      var q2=isGame?gs.q:1;
+      if(isGame){
+        setGs(function(g){
+          var entries=results.map(function(r,i){
+            var shot={id:Date.now()+i,x:BX,y:FT_Y,make:r==='make',date:new Date().toISOString()};
+            return shot;
+          });
+          var newQs=g.pdata[shooter.id].qs.map(function(qd,i){
+            return i!==g.q-1?qd:Object.assign({},qd,{ftShots:(qd.ftShots||[]).concat(entries)});
+          });
+          var newPdata=Object.assign({},g.pdata);
+          newPdata[shooter.id]=Object.assign({},g.pdata[shooter.id],{qs:newQs});
+          var logEntries=results.map(function(r,i){
+            return {id:Date.now()+i+1000,q:g.q,team:'home',player:targetPlayer?targetPlayer.number:'?',action:(r==='make'?'Made ':'Missed ')+'Free Throw ('+(i+1)+' of '+count+')',pts:r==='make'?1:0,ts:new Date().toISOString()};
+          });
+          return Object.assign({},g,{pdata:newPdata,playLog:(g.playLog||[]).concat(logEntries)});
+        });
+      }
+      setActivePid(shooter.id);
+      var makes=results.filter(function(r){return r==='make';}).length;
+      setNotice({label:'FTs #'+shooter.number+': '+makes+'/'+count,make:makes>0});
+      vib(50);
+      clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
+      if(lastResult==='miss'&&isGame) setAwaitRebound({shooter:'home'});
+    }
   }
 
   function handlePlayerSelect(playerId){
@@ -3076,7 +3242,7 @@ function Tracker(props){
 
             {/* Shot type buttons */}
             <div style={{display:'flex',gap:8}}>
-              {[['2PT',T.blue],['3PT','#7c3aed'],['FT','#d97706']].map(function(item){
+              {[['2PT',T.blue],['3PT','#7c3aed']].map(function(item){
                 var lbl=item[0],col=item[1];
                 return (
                   <button key={lbl} onClick={function(){handleShotTypeBtn(lbl);}}
@@ -3093,6 +3259,29 @@ function Tracker(props){
                   </button>
                 );
               })}
+              {isGame&&<button onClick={function(){setFtModal({});}}
+                style={{flex:1,padding:'14px 0',borderRadius:12,
+                  border:'2px solid #d97706',
+                  background:'#d9770618',
+                  color:'#d97706',
+                  fontSize:17,fontWeight:900,letterSpacing:2,
+                  cursor:'pointer',textTransform:'uppercase',
+                  transition:'all 0.15s',
+                  boxShadow:'0 2px 8px #d9770633'}}>
+                FT
+              </button>}
+              {!isGame&&<button key="FT" onClick={function(){handleShotTypeBtn('FT');}}
+                style={{flex:1,padding:'14px 0',borderRadius:12,
+                  border:'2px solid '+(mode?'#d97706':T.border),
+                  background:mode?'#d9770618':T.bg,
+                  color:mode?'#d97706':T.t4,
+                  fontSize:17,fontWeight:900,letterSpacing:2,
+                  cursor:mode?'pointer':'default',textTransform:'uppercase',
+                  transition:'all 0.15s',
+                  boxShadow:mode?'0 2px 8px #d9770633':'none',
+                  opacity:mode?1:0.5}}>
+                FT
+              </button>}
             </div>
 
             {/* Stat chips — game only */}
@@ -3110,8 +3299,9 @@ function Tracker(props){
                           position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
                         <div style={{fontSize:13,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
-                        {s.key==='foul'&&oppQFoul>0&&<div style={{position:'absolute',bottom:3,left:5,fontSize:12,fontWeight:900,color:T.t1,opacity:0.7}}>{oppQFoul}</div>}
-                        {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
+                        {s.key==='foul'&&totVal>0&&<div style={{position:'absolute',bottom:3,left:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
+                        {s.key==='foul'&&oppQFoul>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:12,fontWeight:900,color:T.t1,opacity:0.7}}>{oppQFoul}</div>}
+                        {s.key!=='foul'&&totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
                       </button>
                     );
                   })}
@@ -3199,6 +3389,13 @@ function Tracker(props){
         onFloorPlayers={sortedActive} players={players} onAssist={handleAssist}
         voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
         onMicTap={toggleVoice}
+      />}
+
+      {/* FT Modal */}
+      {ftModal&&isGame&&<FTModal
+        onFloorPlayers={sortedActive} players={players}
+        onDone={handleFTModalDone}
+        onCancel={function(){setFtModal(null);}}
       />}
 
       {/* Rebound popup */}
