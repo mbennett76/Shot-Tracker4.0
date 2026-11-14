@@ -32,7 +32,38 @@ input::placeholder{color:#c7c7cc;}
 /* @jsxRuntime classic */
 const {useState,useEffect,useRef,useCallback,useMemo}=React;
 
-// ── Storage ───────────────────────────────────────────────────────────────────
+// ── Firebase ───────────────────────────────────────────────────────────────────
+var FB_URL='https://shottracker-c571e-default-rtdb.firebaseio.com';
+
+// Low-level Firebase REST helpers
+function fbGet(path){
+  return fetch(FB_URL+path+'.json').then(function(r){return r.json();}).catch(function(){return null;});
+}
+function fbSet(path,data){
+  return fetch(FB_URL+path+'.json',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  }).then(function(r){return r.ok;}).catch(function(){return false;});
+}
+function fbDel(path){
+  return fetch(FB_URL+path+'.json',{method:'DELETE'}).catch(function(){});
+}
+
+// Firebase team key — same structure as localStorage but under /teams/
+function fbTeamPath(id){return '/teams/'+id.replace(/[.#$\[\]]/g,'_');}
+
+// Save full team data to Firebase (returns promise resolving to true/false)
+function fbSaveTeam(id,data){return fbSet(fbTeamPath(id),data);}
+
+// Load full team data from Firebase
+function fbLoadTeam(id){return fbGet(fbTeamPath(id));}
+
+// Save teams list to Firebase
+function fbSaveTeamList(list){return fbSet('/teamlist',list);}
+function fbLoadTeamList(){return fbGet('/teamlist');}
+
+// ── LocalStorage (cache only — not authoritative) ─────────────────────────────
 function lsGet(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
 function lsDel(k){try{localStorage.removeItem(k);}catch(e){}}
@@ -2537,12 +2568,15 @@ function Tracker(props){
   var gs=gsState[0],setGs=gsState[1];
 
   var persist=useCallback(function(np,ns){
-    var ok=lsSet(SK,{players:np,sessions:ns});
+    var data={players:np,sessions:ns};
+    // Write to localStorage as local cache (best-effort)
+    lsSet(SK,data);
+    // Write to Firebase as authoritative store (returns promise, fire-and-forget for non-game saves)
     var allSh=ns.reduce(function(a,s){return a.concat(s.shots||[]);},[] );
     var allFT=ns.reduce(function(a,s){return a.concat(s.ftShots||[]);},[] );
     onPersist({playerCount:np.length,sessionCount:ns.length,totalPoints:calcPts(allSh,allFT)});
-    return ok;
-  },[SK,onPersist]);
+    return fbSaveTeam(teamMeta.id,data);  // returns a Promise<boolean>
+  },[SK,onPersist,teamMeta.id]);
 
   // Auto-draft backup — saves in-progress game every 30s so a failed save can be recovered
   var DRAFT_KEY='bball-gamedraft-'+teamMeta.id;
@@ -2986,33 +3020,26 @@ function Tracker(props){
         GSTATS.forEach(function(g){rec[g.key]=0;});ns.unshift(rec);
       });
     }
-    // ── Fire export FIRST — before any write that could fail ─────────────────
-    // Report lands in Downloads even if localStorage write fails completely.
-    if(exportAfter&&isGame){
-      var preExportSess=ns.filter(function(s){return s.sessionType==='Game'&&s.label===label&&s.date===date;});
-      if(preExportSess.length>0){try{generateReport(preExportSess,players,teamMeta);}catch(e){}}
-    }
-    var ok=persist(players,ns);
-    if(!ok){
-      setSaving(false);
-      alert('⚠️ SAVE FAILED — storage write blocked.\n\nYour export was already downloaded to your Files/Downloads.\n\nDo NOT close this tab. Try tapping Save again.');
-      return;
-    }
-    // Verify the write actually landed
-    var verify=lsGet(SK);
-    var savedCount=verify&&verify.sessions?verify.sessions.length:0;
-    if(savedCount<ns.length){
-      setSaving(false);
-      alert('⚠️ SAVE VERIFICATION FAILED — data may not have saved correctly.\n\nYour export was already downloaded to your Files/Downloads.\n\nDo NOT close this tab. Try tapping Save again.');
-      return;
-    }
-    if(isGame) clearGameDraft();
-    setSessions(ns);setPDrafts({});
-    if(isGame) setGs(makeInitGS());
-    setSaving(false);setView('history');
-    clearTimeout(ntR.current);
-    setNotice({label:'✓ Session saved!',make:true});
-    ntR.current=setTimeout(function(){setNotice(null);},2500);
+    // ── Save to Firebase (primary) then finish ───────────────────────────────
+    persist(players,ns).then(function(ok){
+      if(!ok){
+        setSaving(false);
+        alert('⚠️ SAVE FAILED — could not reach the cloud.\n\nCheck your internet connection and tap Save again.\n\nDo NOT close this tab.');
+        return;
+      }
+      // Also generate the report if requested (secondary — cloud save already succeeded)
+      if(exportAfter&&isGame){
+        var preExportSess=ns.filter(function(s){return s.sessionType==='Game'&&s.label===label&&s.date===date;});
+        if(preExportSess.length>0){try{generateReport(preExportSess,players,teamMeta);}catch(e){}}
+      }
+      if(isGame) clearGameDraft();
+      setSessions(ns);setPDrafts({});
+      if(isGame) setGs(makeInitGS());
+      setSaving(false);setView('history');
+      clearTimeout(ntR.current);
+      setNotice({label:'✓ Saved to cloud!',make:true});
+      ntR.current=setTimeout(function(){setNotice(null);},2500);
+    });
   }
 
   function handleAddPlayer(){
@@ -4037,6 +4064,7 @@ function StorageBar(){
 
 // ── App ────────────────────────────────────────────────────────────────────────
 function App(){
+  // Start from localStorage cache; Firebase load happens in useEffect below
   var teamsState=useState(function(){return lsGet(TLK)||[];});
   var teams=teamsState[0],setTeams=teamsState[1];
   var activeTeamState=useState(null);
@@ -4051,20 +4079,96 @@ function App(){
   var toH1Prop=toH1PropState[0],setToH1Prop=toH1PropState[1];
   var toH2PropState=useState(2);
   var toH2Prop=toH2PropState[0],setToH2Prop=toH2PropState[1];
+  var fbLoadedState=useState(false);
+  var fbLoaded=fbLoadedState[0],setFbLoaded=fbLoadedState[1];
+  // teamDataCache: {[id]: {players,sessions,...}} — loaded from Firebase per team
+  var teamDataCacheState=useState({});
+  var teamDataCache=teamDataCacheState[0],setTeamDataCache=teamDataCacheState[1];
 
-  function saveTeams(list){setTeams(list);lsSet(TLK,list);}
-  function getTeamFullData(id){return lsGet(TK(id))||{players:[],sessions:[],coaches:{head:emptyCoach(),assistants:[]},schedule:[]};}
+  // On mount: load teams list from Firebase; if Firebase is empty but localStorage
+  // has data, migrate everything up to Firebase automatically (runs once).
+  useEffect(function(){
+    fbLoadTeamList().then(function(fbTeams){
+      if(fbTeams&&Array.isArray(fbTeams)&&fbTeams.length>0){
+        // Firebase has data — use it as source of truth
+        setTeams(fbTeams);
+        lsSet(TLK,fbTeams);
+        setFbLoaded(true);
+      } else {
+        // Firebase is empty — check localStorage for existing data to migrate
+        var lsTeams=lsGet(TLK)||[];
+        if(lsTeams.length>0){
+          // Migrate: push teams list + each team's full data up to Firebase
+          var migrationPromises=lsTeams.map(function(t){
+            var teamData=lsGet(TK(t.id));
+            if(teamData){
+              return fbSaveTeam(t.id,teamData);
+            }
+            return Promise.resolve(true);
+          });
+          Promise.all(migrationPromises).then(function(){
+            return fbSaveTeamList(lsTeams);
+          }).then(function(ok){
+            if(ok){
+              console.log('[ShotTracker] Migrated '+lsTeams.length+' team(s) to Firebase.');
+            }
+          });
+          setTeams(lsTeams); // show teams immediately while migration runs
+        }
+        setFbLoaded(true);
+      }
+    }).catch(function(){setFbLoaded(true);});
+  },[]);
+
+  // When active team changes, load its full data from Firebase
+  useEffect(function(){
+    if(!activeTeam) return;
+    fbLoadTeam(activeTeam.id).then(function(fbData){
+      if(fbData&&fbData.players){
+        var merged=Object.assign({coaches:{head:emptyCoach(),assistants:[]},schedule:[]},fbData);
+        setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
+        lsSet(TK(activeTeam.id),merged); // refresh local cache
+      }
+    });
+  },[activeTeam&&activeTeam.id]);
+
+  function saveTeams(list){
+    setTeams(list);
+    lsSet(TLK,list);
+    fbSaveTeamList(list); // fire-and-forget
+  }
+
+  function getTeamFullData(id){
+    // Prefer in-memory Firebase-loaded cache, fall back to localStorage
+    return teamDataCache[id]||lsGet(TK(id))||{players:[],sessions:[],coaches:{head:emptyCoach(),assistants:[]},schedule:[]};
+  }
 
   function onCreate(name,coaches,players){
     var t={id:uid(),name:name,createdAt:new Date().toISOString(),playerCount:players.length,sessionCount:0,totalPoints:0};
-    lsSet(TK(t.id),{players:players||[],sessions:[],coaches:coaches||{head:emptyCoach(),assistants:[]},schedule:[]});
+    var data={players:players||[],sessions:[],coaches:coaches||{head:emptyCoach(),assistants:[]},schedule:[]};
+    lsSet(TK(t.id),data);
+    fbSaveTeam(t.id,data); // write to Firebase immediately
+    setTeamDataCache(function(c){return Object.assign({},c,{[t.id]:data});});
     saveTeams(teams.concat([t]));
     setActiveTeam(t);
   }
   function onEdit(id,name){saveTeams(teams.map(function(t){return t.id===id?Object.assign({},t,{name:name}):t;}));if(activeTeam&&activeTeam.id===id) setActiveTeam(function(a){return Object.assign({},a,{name:name});});}
-  function onDelete(id){saveTeams(teams.filter(function(t){return t.id!==id;}));lsDel(TK(id));if(activeTeam&&activeTeam.id===id){setActiveTeam(null);setSessionType(null);setOpponent(null);}}
+  function onDelete(id){
+    saveTeams(teams.filter(function(t){return t.id!==id;}));
+    lsDel(TK(id));
+    fbDel(fbTeamPath(id));
+    setTeamDataCache(function(c){var n=Object.assign({},c);delete n[id];return n;});
+    if(activeTeam&&activeTeam.id===id){setActiveTeam(null);setSessionType(null);setOpponent(null);}
+  }
   function onImport(nt){setTeams(nt);}
-  function onMeta(id,u){setTeams(function(prev){var n=prev.map(function(t){return t.id===id?Object.assign({},t,u):t;});lsSet(TLK,n);return n;});}
+  function onMeta(id,u){
+    setTeams(function(prev){
+      var n=prev.map(function(t){return t.id===id?Object.assign({},t,u):t;});
+      lsSet(TLK,n);
+      fbSaveTeamList(n);
+      return n;
+    });
+  }
   function handleBack(){if(sessionType!==null){setSessionType(null);setOpponent(null);}else{setActiveTeam(null);}}
 
   function handleUpdateTeamData(updates){
@@ -4072,6 +4176,8 @@ function App(){
     var current=getTeamFullData(activeTeam.id);
     var merged=Object.assign({},current,updates);
     lsSet(TK(activeTeam.id),merged);
+    fbSaveTeam(activeTeam.id,merged); // fire-and-forget
+    setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
 
