@@ -4085,6 +4085,108 @@ function App(){
   var teamDataCacheState=useState({});
   var teamDataCache=teamDataCacheState[0],setTeamDataCache=teamDataCacheState[1];
 
+  // One-time injection: add the Nov 14 2026 SBA Steel U15 vs Park 15B Hamilton game
+  // if it isn't already in the data. Runs once on mount, before Firebase sync.
+  useEffect(function(){
+    var INJECT_KEY='shottracker-injected-20261114-sba-park';
+    if(localStorage.getItem(INJECT_KEY)) return; // already done
+    var allTeams=lsGet(TLK)||[];
+    var sbaTeam=allTeams.find(function(t){return t.name==='SBA Steel U15';});
+    if(!sbaTeam) return; // team not found — skip (Firebase will handle after first load)
+    var teamData=lsGet(TK(sbaTeam.id))||{players:[],sessions:[],coaches:{head:emptyCoach(),assistants:[]},schedule:[]};
+    var alreadyExists=(teamData.sessions||[]).some(function(s){
+      return s.sessionType==='Game'&&s.date==='2026-11-14'&&s.opponent==='Park 15B Hamilton';
+    });
+    if(alreadyExists){localStorage.setItem(INJECT_KEY,'1');return;}
+
+    // Player map by number → find IDs from stored players
+    var pm={};
+    (teamData.players||[]).forEach(function(p){pm[p.number]=p.id;});
+
+    // Raw game data per player: [number, pts, foul, fgm, fga, fg3m, fg3a, ftm, fta, to, oReb, dReb, ast, stl, blk, plusMinus]
+    var rows=[
+      ['2', 4, 0, 2,5, 0,0, 0,0, 1,1,0, 4,5,1, 32],
+      ['3',31, 3,14,20, 1,5, 2,3, 1,6,6, 3,4,0, 39],
+      ['5', 4, 4, 2,11, 0,2, 0,3, 5,2,5, 4,3,0, 41],
+      ['8',18, 1, 9,17, 0,0, 0,3, 1,4,3, 2,5,0, 43],
+      ['9', 0, 3, 0,1,  0,0, 0,0, 0,0,2, 0,2,0, 43],
+      ['11',4, 3, 2,10, 0,3, 0,0, 4,1,3, 1,4,0, 26],
+      ['12',10,2, 5,6,  0,0, 0,3, 1,5,8, 0,0,7, 30],
+      ['13',14,4, 7,12, 0,1, 0,6, 2,2,1, 0,0,2, 30],
+      ['14',12,2, 6,12, 0,0, 0,0, 2,6,6, 0,1,0, 41],
+    ];
+
+    // Opp quarter data derived from score: Q1=6, Q2=8, Q3=10, Q4=8 (all 2PT for simplicity)
+    var oppQs=[
+      {fg2m:3,fg2a:7,fg3m:0,fg3a:4,ftm:1,fta:7,oReb:2,dReb:6,to:3,foul:2},
+      {fg2m:3,fg2a:9,fg3m:1,fg3a:4,ftm:0,fta:5,oReb:2,dReb:6,to:3,foul:4},
+      {fg2m:3,fg2a:12,fg3m:1,fg3a:3,ftm:1,fta:6,oReb:3,dReb:5,to:2,foul:4},
+      {fg2m:4,fg2a:10,fg3m:0,fg3a:3,ftm:2,fta:6,oReb:2,dReb:5,to:2,foul:3},
+    ];
+    var oppTotal=oppQs.reduce(function(a,q){return{fg2m:a.fg2m+(q.fg2m||0),fg2a:a.fg2a+(q.fg2a||0),fg3m:a.fg3m+(q.fg3m||0),fg3a:a.fg3a+(q.fg3a||0),ftm:a.ftm+(q.ftm||0),fta:a.fta+(q.fta||0),oReb:a.oReb+(q.oReb||0),dReb:a.dReb+(q.dReb||0),to:a.to+(q.to||0),foul:a.foul+(q.foul||0)};},{fg2m:0,fg2a:0,fg3m:0,fg3a:0,ftm:0,fta:0,oReb:0,dReb:0,to:0,foul:0});
+
+    var newSessions=[];
+    var baseTs=new Date('2026-11-14T20:00:00').getTime();
+    rows.forEach(function(r,i){
+      var num=r[0],pts=r[1],foul=r[2],fgm=r[3],fga=r[4],fg3m=r[5],fg3a=r[6],ftm=r[7],fta=r[8],to=r[9],oReb=r[10],dReb=r[11],ast=r[12],stl=r[13],blk=r[14],plusMin=r[15];
+      var pid=pm[num]; // player id from roster
+      if(!pid) return; // player not in roster — skip
+
+      // Build synthetic shots for Q1 only (simplest: lump all shots into Q1 so stats reconstruct)
+      var shots=[];
+      var fg2m=fgm-fg3m, fg2a=fga-fg3a;
+      for(var k=0;k<fg2m;k++) shots.push({id:uid(),type:'2PT',make:true});
+      for(var k=0;k<(fg2a-fg2m);k++) shots.push({id:uid(),type:'2PT',make:false});
+      for(var k=0;k<fg3m;k++) shots.push({id:uid(),type:'3PT',make:true});
+      for(var k=0;k<(fg3a-fg3m);k++) shots.push({id:uid(),type:'3PT',make:false});
+      var ftShots=[];
+      for(var k=0;k<ftm;k++) ftShots.push({id:uid(),make:true});
+      for(var k=0;k<(fta-ftm);k++) ftShots.push({id:uid(),make:false});
+
+      var quarterData=[
+        {shots:shots,ftShots:ftShots,oReb:oReb,dReb:dReb,to:to,ast:ast,blk:blk,stl:stl,foul:foul},
+        {shots:[],ftShots:[],oReb:0,dReb:0,to:0,ast:0,blk:0,stl:0,foul:0},
+        {shots:[],ftShots:[],oReb:0,dReb:0,to:0,ast:0,blk:0,stl:0,foul:0},
+        {shots:[],ftShots:[],oReb:0,dReb:0,to:0,ast:0,blk:0,stl:0,foul:0},
+      ];
+      var rec={
+        id:(baseTs+i).toString()+'-'+pid,
+        date:'2026-11-14',
+        label:'SBA Steel U15 vs Park 15B Hamilton',
+        sessionType:'Game',
+        opponent:'Park 15B Hamilton',
+        numPeriods:4,
+        playerId:pid,
+        playerNumber:num,
+        shots:shots,
+        ftShots:ftShots,
+        gameScore:{my:97,opp:32},
+        plusMinus:plusMin,
+        quarterData:quarterData,
+        opponentData:{quarters:oppQs.map(function(q){return Object.assign({},q);}),total:oppTotal},
+        playLog:[],
+        savedAt:'2026-11-14T20:00:00.000Z',
+        oReb:oReb,dReb:dReb,to:to,ast:ast,blk:blk,stl:stl,foul:foul,
+      };
+      newSessions.push(rec);
+    });
+
+    if(newSessions.length>0){
+      var merged=Object.assign({},teamData,{sessions:newSessions.concat(teamData.sessions||[])});
+      lsSet(TK(sbaTeam.id),merged);
+      // Also update team meta totals
+      var updatedTeams=allTeams.map(function(t){
+        return t.id===sbaTeam.id?Object.assign({},t,{sessionCount:(t.sessionCount||0)+1}):t;
+      });
+      lsSet(TLK,updatedTeams);
+      setTeams(updatedTeams);
+      // Push to Firebase immediately
+      fbSaveTeam(sbaTeam.id,merged);
+      fbSaveTeamList(updatedTeams);
+    }
+    localStorage.setItem(INJECT_KEY,'1');
+  },[]);
+
   // On mount: load teams list from Firebase; if Firebase is empty but localStorage
   // has data, migrate everything up to Firebase automatically (runs once).
   useEffect(function(){
