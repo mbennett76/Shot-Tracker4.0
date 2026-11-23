@@ -385,8 +385,12 @@ function OppPanel(props){
 function ScoreBoard(props){
   var myName=props.myName,oppName=props.oppName,myScore=props.myScore,oppScore=props.oppScore;
   var quarter=props.quarter,onSetQ=props.onSetQ,onEditScore=props.onEditScore,numPeriods=props.numPeriods||4;
-  var maxQ=numPeriods+1;
-  function qLabel(q){return q<=numPeriods?String(q):'OT';}
+  var maxQ=numPeriods+4; // allow up to 4 OT periods
+  function qLabel(q){
+    if(q<=numPeriods) return String(q);
+    var ot=q-numPeriods;
+    return ot===1?'OT':'OT'+ot;
+  }
   function advanceQ(){onSetQ(Math.min(quarter+1,maxQ));}
   function retreatQ(){onSetQ(Math.max(quarter-1,1));}
   var btnBase={background:'none',border:'none',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',padding:'4px 8px',borderRadius:6};
@@ -3110,7 +3114,19 @@ function Tracker(props){
             })()}
 
             {/* Scoreboard */}
-            {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
+            {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){
+              // If advancing into OT (q > current slot count), extend all pdata.qs and oppQs by one slot
+              var currentSlots=(g.oppQs||[]).length;
+              if(q>currentSlots){
+                var newOppQs=(g.oppQs||[]).concat([EMPTY_OPP()]);
+                var newPdata=Object.assign({},g.pdata);
+                Object.keys(newPdata).forEach(function(pid){
+                  newPdata[pid]=Object.assign({},newPdata[pid],{qs:newPdata[pid].qs.concat([EMPTY_QSTAT()])});
+                });
+                return Object.assign({},g,{q:q,oppQs:newOppQs,pdata:newPdata});
+              }
+              return Object.assign({},g,{q:q});
+            });}} onEditScore={function(){setScoreEditOpen(true);}}/>}
 
             {/* Notice bar */}
             {(awaitCourt||notice)&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
