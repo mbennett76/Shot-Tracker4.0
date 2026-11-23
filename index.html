@@ -386,46 +386,55 @@ function ScoreBoard(props){
   var myName=props.myName,oppName=props.oppName,myScore=props.myScore,oppScore=props.oppScore;
   var quarter=props.quarter,onSetQ=props.onSetQ,onEditScore=props.onEditScore,numPeriods=props.numPeriods||4;
   var holdTmr=useRef(null);
-  var maxQ=numPeriods+1; // allow OT
-  function qLabel(q){
-    if(q<=numPeriods) return String(q);
-    return 'OT';
-  }
+  var didHold=useRef(false);
+  var maxQ=numPeriods+1; // allow OT (one beyond last regular period)
+  function qLabel(q){return q<=numPeriods?String(q):'OT';}
   function advanceQ(){onSetQ(Math.min(quarter+1,maxQ));}
   function retreatQ(){onSetQ(Math.max(quarter-1,1));}
-  function onQTouchStart(e){
-    e.preventDefault();
-    holdTmr.current=setTimeout(function(){holdTmr.current='fired';retreatQ();},2000);
+  function onQDown(e){
+    e.stopPropagation();
+    didHold.current=false;
+    holdTmr.current=setTimeout(function(){
+      didHold.current=true;
+      retreatQ();
+    },2000);
   }
-  function onQTouchEnd(e){
-    e.preventDefault();
-    if(holdTmr.current&&holdTmr.current!=='fired'){clearTimeout(holdTmr.current);advanceQ();}
-    holdTmr.current=null;
+  function onQUp(e){
+    e.stopPropagation();
+    clearTimeout(holdTmr.current);
+    if(!didHold.current) advanceQ();
+    didHold.current=false;
   }
-  function onQClick(){advanceQ();}
+  function onQLeave(){
+    clearTimeout(holdTmr.current);
+    didHold.current=false;
+  }
   return (
     <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
-      <button onClick={onEditScore} style={{width:'100%',background:'transparent',border:'none',padding:'10px 16px 6px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        <div style={{textAlign:'left',flex:1,minWidth:0}}>
+      {/* Score row — split into 3 cells so quarter sits outside the edit button */}
+      <div style={{display:'flex',alignItems:'center',padding:'10px 16px 4px'}}>
+        {/* Home score — tappable to edit */}
+        <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'left',minWidth:0}}>
           <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{myName}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{myScore}</div>
+        </button>
+        {/* Quarter number — tap=advance, 2s hold=retreat */}
+        <div
+          onPointerDown={onQDown}
+          onPointerUp={onQUp}
+          onPointerLeave={onQLeave}
+          onPointerCancel={onQLeave}
+          style={{fontSize:23,fontWeight:900,color:'#d97706',lineHeight:1,cursor:'pointer',
+            userSelect:'none',WebkitUserSelect:'none',touchAction:'none',
+            padding:'0 14px',paddingTop:12,textAlign:'center',minWidth:44,flexShrink:0}}>
+          {qLabel(quarter)}
         </div>
-        <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'0 10px',paddingTop:12,gap:2}}>
-          <div
-            onClick={function(e){e.stopPropagation();onQClick();}}
-            onTouchStart={function(e){e.stopPropagation();onQTouchStart(e);}}
-            onTouchEnd={function(e){e.stopPropagation();onQTouchEnd(e);}}
-            style={{fontSize:23,fontWeight:900,color:'#d97706',lineHeight:1,cursor:'pointer',
-              userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
-              minWidth:32,textAlign:'center'}}>
-            {qLabel(quarter)}
-          </div>
-        </div>
-        <div style={{textAlign:'right',flex:1,minWidth:0}}>
+        {/* Opp score — tappable to edit */}
+        <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'right',minWidth:0}}>
           <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{oppName||'Opponent'}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
-        </div>
-      </button>
+        </button>
+      </div>
       <div style={{textAlign:'center',paddingBottom:5,fontSize:9,color:T.t4,letterSpacing:1}}>tap score to edit · tap # to advance · hold # to go back</div>
     </div>
   );
