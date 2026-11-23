@@ -385,57 +385,30 @@ function OppPanel(props){
 function ScoreBoard(props){
   var myName=props.myName,oppName=props.oppName,myScore=props.myScore,oppScore=props.oppScore;
   var quarter=props.quarter,onSetQ=props.onSetQ,onEditScore=props.onEditScore,numPeriods=props.numPeriods||4;
-  var holdTmr=useRef(null);
-  var didHold=useRef(false);
-  var maxQ=numPeriods+1; // allow OT (one beyond last regular period)
+  var maxQ=numPeriods+1;
   function qLabel(q){return q<=numPeriods?String(q):'OT';}
   function advanceQ(){onSetQ(Math.min(quarter+1,maxQ));}
   function retreatQ(){onSetQ(Math.max(quarter-1,1));}
-  function onQDown(e){
-    e.stopPropagation();
-    didHold.current=false;
-    holdTmr.current=setTimeout(function(){
-      didHold.current=true;
-      retreatQ();
-    },2000);
-  }
-  function onQUp(e){
-    e.stopPropagation();
-    clearTimeout(holdTmr.current);
-    if(!didHold.current) advanceQ();
-    didHold.current=false;
-  }
-  function onQLeave(){
-    clearTimeout(holdTmr.current);
-    didHold.current=false;
-  }
+  var btnBase={background:'none',border:'none',cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',padding:'4px 8px',borderRadius:6};
   return (
     <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
-      {/* Score row — split into 3 cells so quarter sits outside the edit button */}
       <div style={{display:'flex',alignItems:'center',padding:'10px 16px 4px'}}>
-        {/* Home score — tappable to edit */}
         <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'left',minWidth:0}}>
           <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{myName}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{myScore}</div>
         </button>
-        {/* Quarter number — tap=advance, 2s hold=retreat */}
-        <div
-          onPointerDown={onQDown}
-          onPointerUp={onQUp}
-          onPointerLeave={onQLeave}
-          onPointerCancel={onQLeave}
-          style={{fontSize:23,fontWeight:900,color:'#d97706',lineHeight:1,cursor:'pointer',
-            userSelect:'none',WebkitUserSelect:'none',touchAction:'none',
-            padding:'0 14px',paddingTop:12,textAlign:'center',minWidth:44,flexShrink:0}}>
-          {qLabel(quarter)}
+        {/* ◀ Quarter ▶ */}
+        <div style={{display:'flex',alignItems:'center',gap:2,paddingTop:10,flexShrink:0}}>
+          <button onClick={retreatQ} style={Object.assign({},btnBase,{fontSize:16,color:T.t4})}>◀</button>
+          <div style={{fontSize:23,fontWeight:900,color:'#d97706',minWidth:30,textAlign:'center',lineHeight:1}}>{qLabel(quarter)}</div>
+          <button onClick={advanceQ} style={Object.assign({},btnBase,{fontSize:16,color:T.t4})}>▶</button>
         </div>
-        {/* Opp score — tappable to edit */}
         <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'right',minWidth:0}}>
           <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{oppName||'Opponent'}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
         </button>
       </div>
-      <div style={{textAlign:'center',paddingBottom:5,fontSize:9,color:T.t4,letterSpacing:1}}>tap score to edit · tap # to advance · hold # to go back</div>
+      <div style={{textAlign:'center',paddingBottom:5,fontSize:9,color:T.t4,letterSpacing:1}}>tap score to edit · ◀▶ to change quarter</div>
     </div>
   );
 }
