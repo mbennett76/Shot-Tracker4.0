@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Shot Tracker">
@@ -385,26 +385,48 @@ function OppPanel(props){
 function ScoreBoard(props){
   var myName=props.myName,oppName=props.oppName,myScore=props.myScore,oppScore=props.oppScore;
   var quarter=props.quarter,onSetQ=props.onSetQ,onEditScore=props.onEditScore,numPeriods=props.numPeriods||4;
-  var pNames=getPeriodNames(numPeriods);
+  var holdTmr=useRef(null);
+  var maxQ=numPeriods+1; // allow OT
+  function qLabel(q){
+    if(q<=numPeriods) return String(q);
+    return 'OT';
+  }
+  function advanceQ(){onSetQ(Math.min(quarter+1,maxQ));}
+  function retreatQ(){onSetQ(Math.max(quarter-1,1));}
+  function onQTouchStart(e){
+    e.preventDefault();
+    holdTmr.current=setTimeout(function(){holdTmr.current='fired';retreatQ();},2000);
+  }
+  function onQTouchEnd(e){
+    e.preventDefault();
+    if(holdTmr.current&&holdTmr.current!=='fired'){clearTimeout(holdTmr.current);advanceQ();}
+    holdTmr.current=null;
+  }
+  function onQClick(){advanceQ();}
   return (
     <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
-      <div style={{display:'flex',background:T.bg,borderBottom:'1px solid '+T.border}}>
-        {pNames.map(function(q,i){
-          return <button key={q} onClick={function(){onSetQ(i+1);}} style={{flex:1,padding:'9px 0',border:'none',background:quarter===i+1?T.accent:'transparent',color:quarter===i+1?'#fff':T.t3,fontSize:12,fontWeight:700,letterSpacing:2,cursor:'pointer',transition:'all 0.15s'}}>{q}</button>;
-        })}
-      </div>
-      <button onClick={onEditScore} style={{width:'100%',background:'transparent',border:'none',padding:'10px 16px 4px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+      <button onClick={onEditScore} style={{width:'100%',background:'transparent',border:'none',padding:'10px 16px 6px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
         <div style={{textAlign:'left',flex:1,minWidth:0}}>
           <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{myName}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{myScore}</div>
         </div>
-        <div style={{fontSize:18,color:T.t4,padding:'0 10px',paddingTop:14}}>—</div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'0 10px',paddingTop:12,gap:2}}>
+          <div
+            onClick={function(e){e.stopPropagation();onQClick();}}
+            onTouchStart={function(e){e.stopPropagation();onQTouchStart(e);}}
+            onTouchEnd={function(e){e.stopPropagation();onQTouchEnd(e);}}
+            style={{fontSize:23,fontWeight:900,color:'#d97706',lineHeight:1,cursor:'pointer',
+              userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
+              minWidth:32,textAlign:'center'}}>
+            {qLabel(quarter)}
+          </div>
+        </div>
         <div style={{textAlign:'right',flex:1,minWidth:0}}>
           <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{oppName||'Opponent'}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
         </div>
       </button>
-      <div style={{textAlign:'center',paddingBottom:5,fontSize:9,color:T.t4,letterSpacing:1}}>tap score to adjust</div>
+      <div style={{textAlign:'center',paddingBottom:5,fontSize:9,color:T.t4,letterSpacing:1}}>tap score to edit · tap # to advance · hold # to go back</div>
     </div>
   );
 }
@@ -2052,22 +2074,6 @@ function UndoPopup(props){
   );
 }
 
-// ── Mic Button ─────────────────────────────────────────────────────────────────
-function MicBtn(props){
-  var active=props.active,onTap=props.onTap,size=props.size||40;
-  return (
-    <button onClick={function(e){e.stopPropagation();onTap();}}
-      style={{width:size,height:size,borderRadius:size/2,flexShrink:0,
-        border:active?'none':'1.5px solid '+T.border,
-        background:active?T.red:T.card,color:active?'#fff':T.t3,
-        fontSize:size*0.45,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-        boxShadow:active?'0 0 0 4px rgba(220,38,38,0.25)':T.shadow,
-        animation:active?'pulse 1.5s ease-in-out infinite':'none',
-        userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
-      🎙
-    </button>
-  );
-}
 
 // ── Live Box Score ────────────────────────────────────────────────────────────
 function LiveBoxScore(props){
@@ -2172,15 +2178,13 @@ function LiveBoxScore(props){
 
 // ── Assist Popup ───────────────────────────────────────────────────────────────
 function AssistPopup(props){
-  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist,voiceBar=props.voiceBar,onMicTap=props.onMicTap;
-  useEffect(function(){if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();},[]);
+  var onFloorPlayers=props.onFloorPlayers,players=props.players,onAssist=props.onAssist;
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
       <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,boxShadow:T.shadowMd}}>
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:13,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Assist?</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:12,letterSpacing:1}}>Who got the assist on that basket?</div>
-        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,minHeight:40,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15,lineHeight:1.3}}>{voiceBar.status==='success'?<span style={{color:T.green,fontWeight:700}}>{voiceBar.result}</span>:voiceBar.status==='error'?<span style={{color:T.red,fontWeight:700}}>{voiceBar.result||'Not recognised'}</span>:voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic or say a number</span>}</div></div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:12}}>
           {onFloorPlayers.map(function(p){
             var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
@@ -2208,9 +2212,8 @@ function AssistPopup(props){
 
 // ── Rebound Popup ──────────────────────────────────────────────────────────────
 function ReboundPopup(props){
-  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound,voiceBar=props.voiceBar,onMicTap=props.onMicTap;
+  var shooter=props.shooter,onFloorPlayers=props.onFloorPlayers,players=props.players,onRebound=props.onRebound;
   var isOppShot=shooter==='opp';
-  useEffect(function(){if(onMicTap&&voiceBar&&voiceBar.status!=='listening') onMicTap();},[]);
   var title=isOppShot?'Opponent missed — who rebounded?':'Home missed — who rebounded?';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}}>
@@ -2218,7 +2221,6 @@ function ReboundPopup(props){
         <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 14px'}}/>
         <div style={{fontSize:11,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:2,textTransform:'uppercase',marginBottom:4}}>Rebound</div>
         <div style={{fontSize:10,color:T.t4,textAlign:'center',marginBottom:16,letterSpacing:1}}>{title}</div>
-        {voiceBar&&<div style={{background:T.bg,borderRadius:10,padding:'10px 14px',marginBottom:14,border:'1px solid '+T.border,display:'flex',alignItems:'center',gap:8}}><MicBtn active={voiceBar.status==='listening'} onTap={onMicTap} size={36}/><div style={{flex:1,fontSize:15}}>{voiceBar.transcript?<span style={{color:T.t2,fontStyle:'italic'}}>"{voiceBar.transcript}"</span>:<span style={{color:T.t4}}>Tap mic to record rebound</span>}</div></div>}
         {onFloorPlayers.length===0&&<div style={{textAlign:'center',padding:'12px',color:T.t4,fontSize:12,marginBottom:10}}>No players on floor.</div>}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
           {onFloorPlayers.map(function(p){
@@ -2543,14 +2545,6 @@ function Tracker(props){
   var oppToH1=oppToH1State[0],setOppToH1=oppToH1State[1];
   var oppToH2State=useState(function(){return Array(toH2Cfg).fill(false);});
   var oppToH2=oppToH2State[0],setOppToH2=oppToH2State[1];
-  var voiceTranscriptState=useState('');
-  var voiceTranscript=voiceTranscriptState[0],setVoiceTranscript=voiceTranscriptState[1];
-  var voiceStatusState=useState('idle');
-  var voiceStatus=voiceStatusState[0],setVoiceStatus=voiceStatusState[1];
-  var voiceResultState=useState('');
-  var voiceResult=voiceResultState[0],setVoiceResult=voiceResultState[1];
-  var voiceTmr=useRef(null);
-  var recognitionRef=useRef(null);
   var ntR=useRef(null);
 
   function makeInitGS(){
@@ -2848,6 +2842,8 @@ function Tracker(props){
         newPdata[pid]=Object.assign({},g.pdata[pid],{qs:newQs});
         return Object.assign({},g,{pdata:newPdata,playLog:(g.playLog||[]).concat([entry])});
       });
+      // After a block, prompt for rebound (opponent shot was blocked → home likely rebounds)
+      if(key==='blk') setAwaitRebound({shooter:'opp'});
     } else {
       setGs(function(g){
         if(!g.pdata[pid]) return g;
@@ -2913,85 +2909,6 @@ function Tracker(props){
     }
   }
 
-  function showVoiceFeedback(label,ok){
-    setVoiceResult(label);setVoiceStatus(ok?'success':'error');
-    clearTimeout(voiceTmr.current);
-    voiceTmr.current=setTimeout(function(){setVoiceStatus('idle');setVoiceResult('');setVoiceTranscript('');},2500);
-    if(ok) vib(40);
-  }
-
-  function startVoiceRecognition(){
-    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){setVoiceStatus('error');setVoiceResult('Voice not supported');return;}
-    if(recognitionRef.current) return;
-    var rec=new SR();
-    rec.continuous=false;rec.interimResults=true;rec.lang='en-US';rec.maxAlternatives=1;
-    rec.onstart=function(){setVoiceStatus('listening');};
-    rec.onresult=function(e){
-      var interim='',final='';
-      for(var i=e.resultIndex;i<e.results.length;i++){
-        if(e.results[i].isFinal) final+=e.results[i][0].transcript;
-        else interim+=e.results[i][0].transcript;
-      }
-      if(interim) setVoiceTranscript(interim);
-      if(final.trim()) handleVoiceTranscript(final.trim());
-    };
-    rec.onerror=function(e){
-      if(e.error==='no-speech'){setVoiceStatus('idle');return;}
-      if(e.error==='aborted') return;
-      setVoiceStatus('error');
-      if(e.error==='not-allowed') setVoiceResult('Mic blocked — check Safari settings');
-    };
-    rec.onend=function(){recognitionRef.current=null;setVoiceStatus('idle');};
-    recognitionRef.current=rec;
-    try{rec.start();}catch(e){recognitionRef.current=null;}
-  }
-
-  function stopVoiceRecognition(){
-    if(recognitionRef.current){recognitionRef.current.onend=null;try{recognitionRef.current.stop();}catch(e){}recognitionRef.current=null;}
-    setVoiceStatus('idle');setVoiceTranscript('');
-  }
-
-  function toggleVoice(){
-    if(voiceStatus==='listening') stopVoiceRecognition(); else startVoiceRecognition();
-  }
-
-  function handleVoiceTranscript(text){
-    setVoiceTranscript(text);
-    var t=text.toLowerCase();
-    function wtn(w){var m={'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,'six':6,'seven':7,'eight':8,'nine':9,'ten':10,'eleven':11,'twelve':12,'thirteen':13,'fourteen':14,'fifteen':15,'sixteen':16,'seventeen':17,'eighteen':18,'nineteen':19,'twenty':20,'thirty':30,'forty':40,'fifty':50};var cp=w.match(/^(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)$/);if(cp) return ({twenty:20,thirty:30,forty:40,fifty:50}[cp[1]])+({one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9}[cp[2]]);return m[w]!=null?m[w]:null;}
-    function extractNum(){var m=t.match(/number\s+(\d{1,2})/);if(m) return parseInt(m[1]);var d=t.match(/\b(\d{1,2})\b/g);if(d) return parseInt(d[0]);var cp=t.match(/\b(twenty|thirty|forty|fifty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/);if(cp) return wtn(cp[1]+' '+cp[2]);var isSh=/\bmade\b|\bmissed\b|\bshot\b/.test(t);var sg={zero:0,one:1,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50};if(!isSh){sg.two=2;sg.three=3;}for(var w in sg){if(new RegExp('\\b'+w+'\\b').test(t)) return sg[w];}return null;}
-    function isOv(){return /\bopponent\b|\bopp\b|\btheir\b/.test(t);}
-    function isSh(){return /\bmade\b|\bmissed\b/.test(t);}
-    function getMk(){return /\bmade\b/.test(t);}
-    function getST(){if(/\bfree throw\b|\bft\b|\bfoul shot\b/.test(t)) return 'FT';if(/\bthree\b|\b3pt\b/.test(t)) return '3PT';return '2PT';}
-    function getStat(){if(/\bfoul\b/.test(t)) return 'foul';if(/\bturnover\b/.test(t)) return 'to';if(/\bassist\b/.test(t)) return 'ast';if(/\bsteal\b/.test(t)) return 'stl';if(/\bblock\b/.test(t)) return 'blk';if(/\boffensive rebound\b|\bo reb\b/.test(t)) return 'oReb';if(/\bdefensive rebound\b|\bd reb\b/.test(t)) return 'dReb';if(/\brebound\b|\bboard\b/.test(t)) return 'dReb';return null;}
-    if(awaitRebound){
-      var nb=/\bno rebound\b|\bnone\b|\bskip\b/.test(t),ob=isOv(),rn=extractNum(),rp=rn!=null?sortedActive.find(function(p){return p.number===String(rn);}):null;
-      if(nb){handleRebound('none',null);showVoiceFeedback('No Rebound',true);return;}
-      if(ob){handleRebound('opponent',null);showVoiceFeedback('OPP Rebound',true);return;}
-      if(rp){handleRebound('home-player',rp.id);showVoiceFeedback((awaitRebound.shooter==='home'?'O REB':'D REB')+' #'+rn,true);return;}
-      showVoiceFeedback('Say a number or opponent',false);return;
-    }
-    if(awaitAssist){
-      var na=/\bno assist\b|\bnone\b|\bskip\b/.test(t),an=extractNum(),ap=an!=null?sortedActive.find(function(p){return p.number===String(an);}):null;
-      if(na){handleAssist(null);showVoiceFeedback('No Assist',true);return;}
-      if(ap){handleAssist(ap.id);showVoiceFeedback('AST #'+an,true);return;}
-      showVoiceFeedback('Say a player number',false);return;
-    }
-    var ov=isOv(),num=extractNum(),stat=getStat(),sh=isSh();
-    var pp=num!=null?sortedActive.find(function(p){return p.number===String(num);}):null,pid=pp?pp.id:null;
-    if(ov){
-      if(sh){var mk=getMk(),st=getST(),q=gs.q,pts=mk?(st==='3PT'?3:st==='FT'?1:2):0;var ent={id:Date.now(),q:q,team:'opp',player:'Opponent',action:(mk?'Made ':'Missed ')+st,pts:pts,ts:new Date().toISOString()};setGs(function(g){var nq=(g.oppQs||[]).map(function(qd,i){if(i!==q-1) return qd;if(st==='3PT') return Object.assign({},qd,{fg3m:mk?(qd.fg3m||0)+1:(qd.fg3m||0),fg3a:(qd.fg3a||0)+1});if(st==='FT') return Object.assign({},qd,{ftm:mk?(qd.ftm||0)+1:(qd.ftm||0),fta:(qd.fta||0)+1});return Object.assign({},qd,{fg2m:mk?(qd.fg2m||0)+1:(qd.fg2m||0),fg2a:(qd.fg2a||0)+1});});return Object.assign({},g,{oppQs:nq,playLog:(g.playLog||[]).concat([ent])});});showVoiceFeedback('OPP '+(mk?'Made':'Missed')+' '+st,true);}
-      else if(stat){handleOppStat(gs.q,stat,1);var sl=GSTATS.find(function(g){return g.key===stat;})||{label:stat};showVoiceFeedback('OPP '+sl.label,true);}
-      else showVoiceFeedback('Not recognised',false);
-      return;
-    }
-    if(pid&&stat){handleStat(stat,1,pid);var sl2=GSTATS.find(function(g){return g.key===stat;})||{label:stat};showVoiceFeedback(sl2.label+' #'+num,true);return;}
-    if(pid&&sh){var mk=getMk(),st=getST();if(st==='FT'){recordFT(mk,pid);showVoiceFeedback((mk?'Made':'Missed')+' FT #'+num,true);}else{setMode(mk?'make':'miss');setAwaitCourt({make:mk,shotType:st,playerId:pid});showVoiceFeedback('Tap court #'+num+' '+(mk?'MAKE':'MISS')+' '+st,true);}return;}
-    if(stat){handleStatChipTap(stat);var sl3=GSTATS.find(function(g){return g.key===stat;})||{label:stat};showVoiceFeedback(sl3.label+' — select player',true);return;}
-    showVoiceFeedback('Not recognised',false);
-  }
   function handleSave(opts){
     var label=opts.label,exportAfter=opts.exportAfter,date=todayStr(),ns=sessions.slice();
     if(isGame){
@@ -3213,26 +3130,17 @@ function Tracker(props){
             {/* Scoreboard */}
             {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){return Object.assign({},g,{q:q});});}} onEditScore={function(){setScoreEditOpen(true);}}/>}
 
-            {/* Voice + notice bar */}
-            <div style={{display:'flex',alignItems:'center',gap:8,minHeight:44}}>
-              <MicBtn active={voiceStatus==='listening'} onTap={toggleVoice}/>
-              <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
-                {voiceStatus==='listening'&&voiceTranscript
-                  ?<div style={{fontSize:15,color:T.t3,fontStyle:'italic',textAlign:'center'}}>"{voiceTranscript}"</div>
-                  :voiceStatus==='success'
-                  ?<div style={{color:T.green,fontSize:15,fontWeight:700,textAlign:'center'}}>{voiceResult}</div>
-                  :voiceStatus==='error'
-                  ?<div style={{color:T.red,fontSize:14,fontWeight:700,textAlign:'center'}}>{voiceResult||'Not recognised'}</div>
-                  :awaitCourt
-                  ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
-                    ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
-                  </div>
-                  :notice
-                  ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{notice.label}</div>
-                  :<div style={{fontSize:10,color:T.t4,letterSpacing:1,textAlign:'center'}}>🏙 Tap mic or use buttons</div>
-                }
-              </div>
-            </div>
+            {/* Notice bar */}
+            {(awaitCourt||notice)&&<div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:36}}>
+              {awaitCourt
+                ?<div style={{background:awaitCourt.make?T.green:T.red,color:'#fff',padding:'6px 16px',borderRadius:20,fontSize:12,fontWeight:700,letterSpacing:2,textTransform:'uppercase',animation:'pulse 1s ease-in-out infinite',textAlign:'center'}}>
+                  ↓ Tap court — #{awaitPlayer?awaitPlayer.number:'?'} {awaitCourt.make?'MAKE ✓':'MISS ✗'} {awaitCourt.shotType}
+                </div>
+                :notice
+                ?<div style={{color:notice.make?T.green:T.red,fontSize:11,letterSpacing:2,fontWeight:700,textTransform:'uppercase',textAlign:'center'}}>{notice.label}</div>
+                :null
+              }
+            </div>}
 
             {/* Heat map toggle */}
             {sessions.filter(function(s){return s.playerId===activePid;}).length>0&&(
@@ -3316,11 +3224,11 @@ function Tracker(props){
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
                         style={{flex:1,height:62,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:13,fontWeight:900,
+                          background:s.color+'18',color:s.color,fontSize:17,fontWeight:900,
                           letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
                           position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        <div style={{fontSize:13,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
+                        <div style={{fontSize:17,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
                         {s.key==='foul'&&totVal>0&&<div style={{position:'absolute',bottom:3,left:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
                         {s.key==='foul'&&oppQFoul>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:12,fontWeight:900,color:T.t1,opacity:0.7}}>{oppQFoul}</div>}
                         {s.key!=='foul'&&totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
@@ -3334,11 +3242,11 @@ function Tracker(props){
                     return (
                       <button key={s.key} onClick={function(){handleStatChipTap(s.key);}}
                         style={{flex:1,height:62,borderRadius:10,border:'1px solid '+s.color+'55',
-                          background:s.color+'18',color:s.color,fontSize:13,fontWeight:900,
+                          background:s.color+'18',color:s.color,fontSize:17,fontWeight:900,
                           letterSpacing:1,cursor:'pointer',textTransform:'uppercase',
                           position:'relative',overflow:'hidden',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                           display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        <div style={{fontSize:13,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
+                        <div style={{fontSize:17,fontWeight:900,letterSpacing:1,textAlign:'center',lineHeight:1.2}}>{s.label}</div>
                         {totVal>0&&<div style={{position:'absolute',bottom:3,right:5,fontSize:15,fontWeight:900,color:T.t1,opacity:0.85}}>{totVal}</div>}
                       </button>
                     );
@@ -3409,8 +3317,6 @@ function Tracker(props){
       {/* Assist popup */}
       {awaitAssist&&isGame&&<AssistPopup
         onFloorPlayers={sortedActive} players={players} onAssist={handleAssist}
-        voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
-        onMicTap={toggleVoice}
       />}
 
       {/* FT Modal */}
@@ -3423,8 +3329,6 @@ function Tracker(props){
       {/* Rebound popup */}
       {awaitRebound&&isGame&&<ReboundPopup
         shooter={awaitRebound.shooter} onFloorPlayers={sortedActive} players={players} onRebound={handleRebound}
-        voiceBar={{transcript:voiceTranscript,status:voiceStatus,result:voiceResult}}
-        onMicTap={toggleVoice}
       />}
 
       {/* Substitution popup */}
