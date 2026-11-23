@@ -2383,6 +2383,103 @@ function FTModal(props){
   );
 }
 
+// ── ShotPopup ─────────────────────────────────────────────────────────────────
+// Either-order: user can tap shot type (2PT/3PT) first, then player, or vice versa.
+// make = true|false (set when Make/Miss was tapped to open popup)
+function ShotPopup(props){
+  var make=props.make,isGame=props.isGame;
+  var onFloorPlayers=props.onFloorPlayers,players=props.players;
+  var onHomeShot=props.onHomeShot,onOppShot=props.onOppShot,onCancel=props.onCancel;
+  // local state: selected shot type and pending player (either can be chosen first)
+  var stState=useState(null); var selType=stState[0],setSelType=stState[1];
+  var ppState=useState(null); var pendingPid=ppState[0],setPendingPid=ppState[1];
+  // fire when both are ready
+  function tryFire(type,pid){
+    if(type&&pid==='OPP'){onOppShot(type);return;}
+    if(type&&pid){onHomeShot(type,pid);return;}
+  }
+  function tapType(t){
+    var nextType=selType===t?null:t;
+    setSelType(nextType);
+    if(nextType&&pendingPid) tryFire(nextType,pendingPid);
+  }
+  function tapPlayer(pid){
+    if(selType){tryFire(selType,pid);}
+    else{setPendingPid(function(p){return p===pid?null:pid;});}
+  }
+  var makeLabel=make?'✓ MAKE':'✗ MISS';
+  var makeColor=make?T.green:T.red;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:997,display:'flex',alignItems:'flex-end',justifyContent:'center'}} onClick={onCancel}>
+      <div style={{background:T.card,borderRadius:'20px 20px 0 0',width:'100%',maxWidth:520,padding:'20px',paddingBottom:36,animation:'slideup 0.18s ease',boxShadow:T.shadowMd}} onClick={function(e){e.stopPropagation();}}>
+        <div style={{width:40,height:4,background:T.border,borderRadius:2,margin:'0 auto 12px'}}/>
+        {/* Make/Miss badge */}
+        <div style={{textAlign:'center',marginBottom:12}}>
+          <span style={{background:makeColor,color:'#fff',padding:'4px 18px',borderRadius:20,fontSize:13,fontWeight:900,letterSpacing:2}}>{makeLabel}</span>
+        </div>
+        {/* 2PT / 3PT toggle row */}
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          {[['2PT',T.blue],['3PT','#7c3aed']].map(function(item){
+            var t=item[0],col=item[1];
+            var sel=selType===t;
+            return (
+              <button key={t} onClick={function(){tapType(t);}}
+                style={{flex:1,padding:'12px 0',borderRadius:12,
+                  border:'2px solid '+(sel?col:col+'66'),
+                  background:sel?col:col+'18',
+                  color:sel?'#fff':col,
+                  fontSize:18,fontWeight:900,letterSpacing:2,cursor:'pointer',
+                  textTransform:'uppercase',transition:'all 0.12s',
+                  boxShadow:sel?'0 4px 16px '+col+'44':'none',
+                  userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                {t}
+              </button>
+            );
+          })}
+        </div>
+        {/* hint */}
+        <div style={{textAlign:'center',fontSize:10,color:T.t4,letterSpacing:1,marginBottom:10,textTransform:'uppercase'}}>
+          {!selType&&!pendingPid?'Tap shot type · then player':selType&&!pendingPid?'Now tap the player or opponent':!selType&&pendingPid?'Now tap the shot type':''}
+        </div>
+        {/* Player chips */}
+        {onFloorPlayers.length===0&&<div style={{textAlign:'center',padding:'10px',color:T.t4,fontSize:12}}>No players on the floor. Use Substitution to add players.</div>}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:10}}>
+          {onFloorPlayers.map(function(p){
+            var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+            var col=pc(p,pIdx);
+            var isPending=pendingPid===p.id;
+            return (
+              <button key={p.id} onClick={function(){tapPlayer(p.id);}}
+                style={{height:68,borderRadius:12,
+                  border:'2.5px solid '+(isPending?'#fff':col),
+                  background:isPending?col:col+'18',
+                  color:isPending?'#fff':col,
+                  fontSize:28,fontWeight:900,cursor:'pointer',
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  boxShadow:isPending?'0 4px 16px '+col+'66':'none',
+                  userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+                {p.number}
+              </button>
+            );
+          })}
+        </div>
+        {/* Opponent button — game only */}
+        {isGame&&<button onClick={function(){tapPlayer('OPP');}}
+          style={{width:'100%',padding:'14px',borderRadius:12,
+            border:'2px solid '+(pendingPid==='OPP'?T.t2:T.t4),
+            background:pendingPid==='OPP'?T.t3:T.bg,
+            color:pendingPid==='OPP'?T.t1:T.t2,
+            fontSize:15,fontWeight:700,letterSpacing:2,cursor:'pointer',
+            textTransform:'uppercase',marginBottom:10,
+            userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation'}}>
+          🆚 Opponent
+        </button>}
+        <button onClick={onCancel} style={{width:'100%',padding:'13px',borderRadius:12,border:'1.5px solid '+T.t3,background:T.bg,color:T.t1,fontSize:16,fontWeight:900,cursor:'pointer',letterSpacing:1,touchAction:'manipulation'}}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function PlayerPopup(props){
   var type=props.type,shotType=props.shotType,statKey=props.statKey;
   var onFloorPlayers=props.onFloorPlayers,players=props.players;
@@ -2509,6 +2606,8 @@ function Tracker(props){
   var pDrafts=pDraftsState[0],setPDrafts=pDraftsState[1];
   var playerPopupState=useState(null);
   var playerPopup=playerPopupState[0],setPlayerPopup=playerPopupState[1];
+  var shotPopupState=useState(null); // {make:bool} when open, null when closed
+  var shotPopup=shotPopupState[0],setShotPopup=shotPopupState[1];
   var awaitCourtState=useState(null);
   var awaitCourt=awaitCourtState[0],setAwaitCourt=awaitCourtState[1];
   var awaitReboundState=useState(null);
@@ -3160,57 +3259,53 @@ function Tracker(props){
               </div>
             </div>
 
-            {/* Make / Miss buttons */}
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={function(){setMode(function(m){return m==='make'?null:'make';});setAwaitCourt(null);setPlayerPopup(null);}}
-                style={{flex:1,padding:'14px 0',borderRadius:12,border:mode==='make'?'none':'2px solid '+T.green,background:mode==='make'?T.green:T.card,color:mode==='make'?'#fff':T.green,fontSize:15,fontWeight:800,letterSpacing:2,cursor:'pointer',boxShadow:mode==='make'?'0 4px 16px rgba(22,163,74,0.3)':T.shadow,transition:'all 0.15s',textTransform:'uppercase'}}>✓ Make</button>
-              <button onClick={function(){setMode(function(m){return m==='miss'?null:'miss';});setAwaitCourt(null);setPlayerPopup(null);}}
-                style={{flex:1,padding:'14px 0',borderRadius:12,border:mode==='miss'?'none':'2px solid '+T.red,background:mode==='miss'?T.red:T.card,color:mode==='miss'?'#fff':T.red,fontSize:15,fontWeight:800,letterSpacing:2,cursor:'pointer',boxShadow:mode==='miss'?'0 4px 16px rgba(220,38,38,0.3)':T.shadow,transition:'all 0.15s',textTransform:'uppercase'}}>✗ Miss</button>
+            {/* Make / FT / Miss buttons */}
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={function(){setAwaitCourt(null);setShotPopup({make:true});}}
+                style={{flex:1,padding:'14px 0',borderRadius:12,border:'2px solid '+T.green,background:T.card,color:T.green,fontSize:15,fontWeight:800,letterSpacing:2,cursor:'pointer',boxShadow:T.shadow,textTransform:'uppercase',touchAction:'manipulation',userSelect:'none',WebkitUserSelect:'none'}}>✓ Make</button>
+              {isGame&&<button onClick={function(){setFtModal({});}}
+                style={{flex:1,padding:'14px 0',borderRadius:12,border:'2px solid #d97706',background:'#d9770618',color:'#d97706',fontSize:17,fontWeight:900,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 2px 8px #d9770633',touchAction:'manipulation',userSelect:'none',WebkitUserSelect:'none'}}>FT</button>}
+              {!isGame&&<button onClick={function(){setMode('make');setPlayerPopup({type:'shot',shotType:'FT'});}}
+                style={{flex:1,padding:'14px 0',borderRadius:12,border:'2px solid #d97706',background:'#d9770618',color:'#d97706',fontSize:17,fontWeight:900,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 2px 8px #d9770633',touchAction:'manipulation',userSelect:'none',WebkitUserSelect:'none'}}>FT</button>}
+              <button onClick={function(){setAwaitCourt(null);setShotPopup({make:false});}}
+                style={{flex:1,padding:'14px 0',borderRadius:12,border:'2px solid '+T.red,background:T.card,color:T.red,fontSize:15,fontWeight:800,letterSpacing:2,cursor:'pointer',boxShadow:T.shadow,textTransform:'uppercase',touchAction:'manipulation',userSelect:'none',WebkitUserSelect:'none'}}>✗ Miss</button>
             </div>
 
-            {/* Shot type buttons */}
-            <div style={{display:'flex',gap:8}}>
-              {[['2PT',T.blue],['3PT','#7c3aed']].map(function(item){
-                var lbl=item[0],col=item[1];
-                return (
-                  <button key={lbl} onClick={function(){handleShotTypeBtn(lbl);}}
-                    style={{flex:1,padding:'14px 0',borderRadius:12,
-                      border:'2px solid '+(mode?col:T.border),
-                      background:mode?col+'18':T.bg,
-                      color:mode?col:T.t4,
-                      fontSize:17,fontWeight:900,letterSpacing:2,
-                      cursor:mode?'pointer':'default',textTransform:'uppercase',
-                      transition:'all 0.15s',
-                      boxShadow:mode?'0 2px 8px '+col+'33':'none',
-                      opacity:mode?1:0.5}}>
-                    {lbl}
-                  </button>
-                );
-              })}
-              {isGame&&<button onClick={function(){setFtModal({});}}
-                style={{flex:1,padding:'14px 0',borderRadius:12,
-                  border:'2px solid #d97706',
-                  background:'#d9770618',
-                  color:'#d97706',
-                  fontSize:17,fontWeight:900,letterSpacing:2,
-                  cursor:'pointer',textTransform:'uppercase',
-                  transition:'all 0.15s',
-                  boxShadow:'0 2px 8px #d9770633'}}>
-                FT
-              </button>}
-              {!isGame&&<button key="FT" onClick={function(){handleShotTypeBtn('FT');}}
-                style={{flex:1,padding:'14px 0',borderRadius:12,
-                  border:'2px solid '+(mode?'#d97706':T.border),
-                  background:mode?'#d9770618':T.bg,
-                  color:mode?'#d97706':T.t4,
-                  fontSize:17,fontWeight:900,letterSpacing:2,
-                  cursor:mode?'pointer':'default',textTransform:'uppercase',
-                  transition:'all 0.15s',
-                  boxShadow:mode?'0 2px 8px #d9770633':'none',
-                  opacity:mode?1:0.5}}>
-                FT
-              </button>}
-            </div>
+            {/* ShotPopup */}
+            {shotPopup&&<ShotPopup
+              make={shotPopup.make}
+              isGame={isGame}
+              onFloorPlayers={sortedActive}
+              players={players}
+              onHomeShot={function(shotType,playerId){
+                var isMake=shotPopup.make;
+                setShotPopup(null);
+                if(shotType==='FT'){recordFT(isMake,playerId);}
+                else{setMode(isMake?'make':'miss');setAwaitCourt({make:isMake,shotType:shotType,playerId:playerId});}
+              }}
+              onOppShot={function(shotType){
+                var make=shotPopup.make; // capture before setShotPopup(null)
+                var shotKey=shotType==='3PT'?'fg3':'fg2';
+                var q=gs.q;
+                var pts=make?(shotType==='3PT'?3:2):0;
+                var entry={id:Date.now(),q:q,team:'opp',player:'Opponent',action:(make?'Made ':'Missed ')+shotType,pts:pts,ts:new Date().toISOString()};
+                setGs(function(g){
+                  var newQs=(g.oppQs||[]).map(function(qd,i){
+                    if(i!==q-1) return qd;
+                    if(shotKey==='fg2') return Object.assign({},qd,{fg2m:make?(qd.fg2m||0)+1:(qd.fg2m||0),fg2a:(qd.fg2a||0)+1});
+                    if(shotKey==='fg3') return Object.assign({},qd,{fg3m:make?(qd.fg3m||0)+1:(qd.fg3m||0),fg3a:(qd.fg3a||0)+1});
+                    return qd;
+                  });
+                  return Object.assign({},g,{oppQs:newQs,playLog:(g.playLog||[]).concat([entry])});
+                });
+                setNotice({label:(make?'✓ Opp Make':'✗ Opp Miss')+' · '+shotType,make:make});
+                vib(50);
+                clearTimeout(ntR.current);ntR.current=setTimeout(function(){setNotice(null);},2500);
+                if(!make) setAwaitRebound({shooter:'opp'});
+                setShotPopup(null);
+              }}
+              onCancel={function(){setShotPopup(null);}}
+            />}
 
             {/* Stat chips — game only */}
             {isGame&&(
