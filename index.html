@@ -398,7 +398,7 @@ function ScoreBoard(props){
     <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',padding:'10px 16px 4px'}}>
         <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'left',minWidth:0}}>
-          <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{myName}</div>
+          <div style={{fontSize:12,color:T.t2,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:700}}>{myName}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{myScore}</div>
         </button>
         {/* ◀ Quarter ▶ */}
@@ -408,7 +408,7 @@ function ScoreBoard(props){
           <button onClick={advanceQ} style={Object.assign({},btnBase,{fontSize:16,color:T.t4})}>▶</button>
         </div>
         <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'right',minWidth:0}}>
-          <div style={{fontSize:9,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{oppName||'Opponent'}</div>
+          <div style={{fontSize:12,color:T.t2,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:700}}>{oppName||'Opponent'}</div>
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
         </button>
       </div>
@@ -2531,23 +2531,16 @@ function TimeoutStrip(props){
     setOppSlots(next);
     onLog('opp',i,!oppSlots[i]);
   }
-  var stripStyle={background:'#1e3a5f',borderRadius:10,padding:'6px 10px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:8};
-  var labelStyle={fontSize:9,color:'rgba(255,255,255,0.7)',fontWeight:700,letterSpacing:1,textTransform:'uppercase',textAlign:'center',marginBottom:3};
-  var btnStyle=function(used){return {width:28,height:28,borderRadius:6,border:'2px solid '+(used?'#f59e0b':'rgba(255,255,255,0.3)'),background:used?'#f59e0b':'transparent',cursor:'pointer',transition:'all 0.15s'};};
+  var stripStyle={background:'#1e3a5f',borderRadius:10,padding:'6px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:6};
+  var circStyle=function(used){return {width:22,height:22,borderRadius:'50%',border:'2px solid '+(used?'#f59e0b':'rgba(255,255,255,0.25)'),background:used?'#f59e0b':'transparent',cursor:'pointer',transition:'all 0.15s',touchAction:'manipulation'};};
   return (
     <div style={stripStyle}>
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <div style={labelStyle}>{myName||'US'}</div>
-        <div style={{display:'flex',gap:4}}>
-          {mySlots.map(function(used,i){return <button key={i} onClick={function(){toggleMy(i);}} style={btnStyle(used)}/>;} )}
-        </div>
+      <div style={{display:'flex',gap:5}}>
+        {mySlots.map(function(used,i){return <button key={i} onClick={function(){toggleMy(i);}} style={circStyle(used)}/>;} )}
       </div>
-      <div style={{fontSize:10,color:'rgba(255,255,255,0.5)',fontWeight:700,letterSpacing:2}}>TIMEOUT</div>
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
-        <div style={labelStyle}>{oppName||'OPP'}</div>
-        <div style={{display:'flex',gap:4}}>
-          {oppSlots.map(function(used,i){return <button key={i} onClick={function(){toggleOpp(i);}} style={btnStyle(used)}/>;} )}
-        </div>
+      <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700,letterSpacing:2}}>TIMEOUT</div>
+      <div style={{display:'flex',gap:5}}>
+        {oppSlots.map(function(used,i){return <button key={i} onClick={function(){toggleOpp(i);}} style={circStyle(used)}/>;} )}
       </div>
     </div>
   );
@@ -3135,46 +3128,86 @@ function Tracker(props){
               );
             })()}
 
-            {/* On-floor player chips */}
-            <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px'}}>
-              <div style={{fontSize:8,color:T.green,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:10}}>On Floor {sortedActive.length>0?'('+sortedActive.length+')':''}</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:8,justifyContent:'flex-start',marginBottom:10,minHeight:52}}>
+            {/* Player chips — tap to toggle floor/bench, tap selected to deselect */}
+            <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'10px 12px'}}>
+              {/* Floor row */}
+              <div style={{fontSize:8,color:T.green,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:7}}>On Floor {sortedActive.length>0?'· '+sortedActive.length:''}</div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:7,marginBottom:8,minHeight:46}}>
                 {sortedActive.map(function(p){
                   var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
                   var col=pc(p,pIdx);
                   var isA=activePid===p.id;
                   var fouls=isGame&&gs.pdata[p.id]?gs.pdata[p.id].qs.reduce(function(t,q){return t+(q.foul||0);},0):0;
-                  var dotPos=[{top:3,left:3},{top:3,right:3},{bottom:3,left:3},{bottom:3,right:3}];
+                  var dotPos=[{top:2,left:2},{top:2,right:2},{bottom:2,left:2},{bottom:2,right:2}];
                   return (
-                    <div key={p.id} onClick={function(){if(activePid===p.id){setEditPid(p.id);setEditNum(p.number);setEditName(p.name||"");setConfDelP(false);}else{setActivePid(p.id);}}}
-                      style={{width:56,height:56,borderRadius:12,position:'relative',
-                        border:isA?'2.5px solid '+col:'1.5px solid '+col+'66',
-                        background:isA?col+'28':col+'12',color:isA?col:col+'cc',
-                        fontSize:24,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
+                    <div key={p.id} onClick={function(){
+                      if(isA){setActivePid(null);}
+                      else if(activePid===p.id){setEditPid(p.id);setEditNum(p.number);setEditName(p.name||'');setConfDelP(false);}
+                      else{setActivePid(p.id);}
+                    }}
+                      onDoubleClick={function(){togglePlayer(p);if(activePid===p.id) setActivePid(null);}}
+                      style={{width:52,height:52,borderRadius:11,position:'relative',
+                        border:isA?'2.5px solid '+col:'1.5px solid '+col+'88',
+                        background:isA?col+'30':col+'18',color:isA?col:col,
+                        fontSize:22,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
                         cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                         transition:'all 0.15s'}}>
                       {p.number}
                       {isGame&&dotPos.slice(0,Math.min(fouls,4)).map(function(pos,i){
-                        return <div key={i} style={Object.assign({},{position:'absolute',width:9,height:9,borderRadius:'50%',background:'#111',boxShadow:'0 0 0 1.5px rgba(255,255,255,0.5)'},pos)}/>;
+                        return <div key={i} style={Object.assign({},{position:'absolute',width:8,height:8,borderRadius:'50%',background:'#111',boxShadow:'0 0 0 1.5px rgba(255,255,255,0.5)'},pos)}/>;
                       })}
                       {isGame&&fouls>=5&&(
-                        <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',borderRadius:12,pointerEvents:'none'}} viewBox="0 0 56 56">
-                          <line x1="5" y1="5" x2="51" y2="51" stroke="#111" strokeWidth="3.5" strokeLinecap="round"/>
+                        <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',borderRadius:11,pointerEvents:'none'}} viewBox="0 0 52 52">
+                          <line x1="5" y1="5" x2="47" y2="47" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"/>
                         </svg>
                       )}
                     </div>
                   );
                 })}
-                {sortedActive.length===0&&<div style={{fontSize:11,color:T.t4,padding:'8px 0',letterSpacing:1}}>No players on floor — use Substitution</div>}
-                {players.length<12&&<div onClick={function(){setAddOpen(true);setNewNum('');setNewName('');}}
-                  style={{width:56,height:56,borderRadius:12,border:'1.5px dashed '+T.border,background:'transparent',
-                    color:T.t4,fontSize:26,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
-                  +
-                </div>}
+                {sortedActive.length===0&&<div style={{fontSize:11,color:T.t4,padding:'6px 0',letterSpacing:1,alignSelf:'center'}}>Tap bench players to add to floor</div>}
               </div>
+              {/* Bench row */}
+              {players.filter(function(p){return !isChipActive(p);}).length>0&&(
+                <div>
+                  <div style={{fontSize:8,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:7}}>Bench</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+                    {players.filter(function(p){return !isChipActive(p);}).sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p){
+                      var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
+                      var col=pc(p,pIdx);
+                      var fouls=isGame&&gs.pdata[p.id]?gs.pdata[p.id].qs.reduce(function(t,q){return t+(q.foul||0);},0):0;
+                      var dotPos=[{top:2,left:2},{top:2,right:2},{bottom:2,left:2},{bottom:2,right:2}];
+                      return (
+                        <div key={p.id} onClick={function(){togglePlayer(p);setActivePid(p.id);}}
+                          style={{width:52,height:52,borderRadius:11,position:'relative',
+                            border:'1.5px solid '+col+'44',
+                            background:col+'08',color:col+'77',
+                            fontSize:22,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
+                            cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
+                            transition:'all 0.15s',opacity:0.6}}>
+                          {p.number}
+                          {isGame&&dotPos.slice(0,Math.min(fouls,4)).map(function(pos,i){
+                            return <div key={i} style={Object.assign({},{position:'absolute',width:8,height:8,borderRadius:'50%',background:'#111',boxShadow:'0 0 0 1.5px rgba(255,255,255,0.5)'},pos)}/>;
+                          })}
+                          {isGame&&fouls>=5&&(
+                            <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',borderRadius:11,pointerEvents:'none'}} viewBox="0 0 52 52">
+                              <line x1="5" y1="5" x2="47" y2="47" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"/>
+                            </svg>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {/* Add player button */}
+              {players.length<12&&<div onClick={function(){setAddOpen(true);setNewNum('');setNewName('');}}
+                style={{width:52,height:52,borderRadius:11,border:'1.5px dashed '+T.border,background:'transparent',
+                  color:T.t4,fontSize:24,display:'inline-flex',alignItems:'center',justifyContent:'center',cursor:'pointer',marginTop:7}}>
+                +
+              </div>}
               {/* Mini stats for selected player */}
               {player&&(curSh.length>0||curFT.length>0)&&(
-                <div style={{display:'flex',gap:10,fontSize:10,color:T.t3,borderTop:'1px solid '+T.border,paddingTop:8}}>
+                <div style={{display:'flex',gap:10,fontSize:10,color:T.t3,borderTop:'1px solid '+T.border,paddingTop:8,marginTop:8}}>
                   <span style={{fontWeight:700,color:pC}}>#{player.number}</span>
                   {curSh.length>0&&<span style={{fontWeight:600,color:T.t2}}>{curSh.length} FG</span>}
                   {curFT.length>0&&<span style={{fontWeight:600,color:T.t2}}>{curFT.length} FT</span>}
@@ -3183,10 +3216,6 @@ function Tracker(props){
                   {isGame&&<span style={{color:T.t4}}>{pNames[gs.q-1]}</span>}
                 </div>
               )}
-              <button onClick={function(){setShowSub(true);}}
-                style={{width:'100%',marginTop:10,padding:'10px',borderRadius:10,border:'1.5px solid '+T.border,
-                  background:T.bg,color:T.t2,fontSize:12,fontWeight:700,letterSpacing:2,cursor:'pointer',
-                  textTransform:'uppercase',boxShadow:'none'}}>🔄 Substitution</button>
             </div>
 
             {/* Timeout strip */}
