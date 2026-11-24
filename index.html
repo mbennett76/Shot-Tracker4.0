@@ -1462,11 +1462,11 @@ function SessionTypeScreen(props){
           {/* Middle: opponent / practice */}
           <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',justifyContent:'center',padding:'10px 12px'}}>
             {isG?(
-              <div style={{fontSize:17,fontWeight:900,color:isPast?T.t3:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+              <div style={{fontSize:28,fontWeight:900,color:isPast?T.t3:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                 {isHome?'VS. ':'@ '}<span style={{color:isPast?T.t3:T.t1}}>{e.opponent||'Opponent'}</span>
               </div>
             ):(
-              <div style={{fontSize:17,fontWeight:900,color:isPast?T.t3:T.t1}}>Practice</div>
+              <div style={{fontSize:28,fontWeight:900,color:isPast?T.t3:T.t1}}>Practice</div>
             )}
             {e.venue?<div style={{fontSize:13,color:T.t4,marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.venue}</div>:null}
           </div>
@@ -1522,8 +1522,8 @@ function SessionTypeScreen(props){
 
         {/* Roster + History chips */}
         <div style={{display:'flex',gap:10,marginTop:6}}>
-          <button onClick={function(){setActiveTab('roster');}} style={{flex:1,padding:'18px 10px',borderRadius:14,border:'none',background:'#7c3aed',color:'#fff',fontSize:16,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(124,58,237,0.35)',letterSpacing:1,touchAction:'manipulation'}}>👥 Roster</button>
-          <button onClick={function(){setHistoryView({defaultSession:null,sessions:teamData.sessions||[]});}} style={{flex:1,padding:'18px 10px',borderRadius:14,border:'none',background:'#0891b2',color:'#fff',fontSize:16,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(8,145,178,0.35)',letterSpacing:1,touchAction:'manipulation'}}>📊 History</button>
+          <button onClick={function(){setActiveTab('roster');}} style={{flex:1,padding:'20px 10px',borderRadius:14,border:'none',background:'#7c3aed',color:'#fff',fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(124,58,237,0.35)',letterSpacing:1,touchAction:'manipulation'}}>👥 Roster</button>
+          <button onClick={function(){setHistoryView({defaultSession:null,sessions:teamData.sessions||[]});}} style={{flex:1,padding:'20px 10px',borderRadius:14,border:'none',background:'#0891b2',color:'#fff',fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(8,145,178,0.35)',letterSpacing:1,touchAction:'manipulation'}}>📊 History</button>
         </div>
       </div>
 
