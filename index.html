@@ -4166,6 +4166,7 @@ function App(){
   var toH2Prop=toH2PropState[0],setToH2Prop=toH2PropState[1];
   var fbLoadedState=useState(false);
   var fbLoaded=fbLoadedState[0],setFbLoaded=fbLoadedState[1];
+  var showingState=useState(true); var showingAnim=showingState[0],setShowingAnim=showingState[1];
   // teamDataCache: {[id]: {players,sessions,...}} — loaded from Firebase per team
   var teamDataCacheState=useState({});
   var teamDataCache=teamDataCacheState[0],setTeamDataCache=teamDataCacheState[1];
@@ -4367,8 +4368,6 @@ function App(){
     setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
-
-  var showingState=useState(true); var showingAnim=showingState[0],setShowingAnim=showingState[1];
 
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
