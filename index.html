@@ -20,6 +20,12 @@ input::placeholder{color:#c7c7cc;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
 @keyframes slideup{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes popin{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
+@keyframes ballBounce{0%{transform:translateY(-220px) scale(1);}35%{transform:translateY(0px) scale(1.18,0.7);}50%{transform:translateY(-90px) scale(1);}65%{transform:translateY(0px) scale(1.1,0.8);}80%{transform:translateY(-36px) scale(1);}90%{transform:translateY(0px) scale(1.05,0.9);}100%{transform:translateY(0px) scale(1);}}
+@keyframes ballArc{0%{transform:translate(0,0) rotate(0deg);}50%{transform:translate(60px,-120px) rotate(90deg);}100%{transform:translate(120px,0) rotate(180deg);opacity:0;}}
+@keyframes hoopAppear{from{opacity:0;transform:scale(0.6)}to{opacity:1;transform:scale(1)}}
+@keyframes ballThrough{0%{transform:translateY(0);opacity:1}60%{transform:translateY(44px);opacity:1}100%{transform:translateY(80px);opacity:0}}
+@keyframes netSwing{0%,100%{transform:scaleX(1)}40%{transform:scaleX(1.3)}70%{transform:scaleX(0.85)}}
+@keyframes appFadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
@@ -1381,6 +1387,7 @@ function SessionTypeScreen(props){
   var editAstIdxState=useState(null);var editAstIdx=editAstIdxState[0],setEditAstIdx=editAstIdxState[1];
   var historyViewState=useState(null);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
   var addPlayerOpenState=useState(false);var addPlayerOpen=addPlayerOpenState[0],setAddPlayerOpen=addPlayerOpenState[1];
+  var addMenuState=useState(false);var addMenuOpen=addMenuState[0],setAddMenuOpen=addMenuState[1];
   var addPNumState=useState('');var addPNum=addPNumState[0],setAddPNum=addPNumState[1];
   var addPNameState=useState('');var addPName=addPNameState[0],setAddPName=addPNameState[1];
   var confDelPlayerState=useState(null);var confDelPlayer=confDelPlayerState[0],setConfDelPlayer=confDelPlayerState[1];
@@ -1456,63 +1463,80 @@ function SessionTypeScreen(props){
     );
   }
 
+  // Combined upcoming-first then past events for the unified list
+  var allEvents=upcoming.concat(past); // upcoming sorted asc, past sorted desc — upcoming first
+
   return (
-    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',maxWidth:520,margin:'0 auto'}}>
-      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'36px 16px 14px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
-        <button onClick={onBack} style={{position:'absolute',left:16,top:38,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>← Teams</button>
-        <div style={{fontSize:28,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase',lineHeight:1.1}}>{teamMeta.name}</div>
-        <div style={{display:'flex',background:T.bg,borderRadius:10,border:'1px solid '+T.border,overflow:'hidden',marginTop:12}}>
-          {[['session','🏀 Session'],['schedule','📅 Schedule'],['roster','👥 Roster']].map(function(item){return <button key={item[0]} onClick={function(){setActiveTab(item[0]);}} style={{flex:1,padding:'9px 0',border:'none',cursor:'pointer',background:activeTab===item[0]?T.accent:'transparent',color:activeTab===item[0]?'#fff':T.t3,fontSize:10,letterSpacing:1,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s'}}>{item[1]}</button>;})}
+    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',maxWidth:520,margin:'0 auto',paddingBottom:90}}>
+      {/* Header: back button + team logo + name */}
+      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 16px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
+        <button onClick={onBack} style={{position:'absolute',left:14,top:46,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:1,textTransform:'uppercase',touchAction:'manipulation'}}>← Teams</button>
+        {/* Team logo — editable emoji */}
+        <div style={{width:68,height:68,borderRadius:18,background:T.bg,border:'2px solid '+T.border,display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,margin:'0 auto 10px',cursor:'default'}}>
+          {teamMeta.logo||'🏀'}
+        </div>
+        <div style={{fontSize:22,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase',lineHeight:1.1}}>{teamMeta.name}</div>
+      </div>
+
+      {/* Main scrollable content */}
+      <div style={{width:'100%',padding:'14px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
+
+        {/* Event list: upcoming then past, mixed */}
+        {allEvents.length===0&&(
+          <div style={{textAlign:'center',padding:'50px 20px',color:T.t4}}>
+            <div style={{fontSize:36,marginBottom:10}}>📅</div>
+            <div style={{fontSize:13,letterSpacing:2,textTransform:'uppercase'}}>No events yet — tap + to add one</div>
+          </div>
+        )}
+        {upcoming.length>0&&<div>
+          <div style={{fontSize:9,color:T.accent,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:6}}>Upcoming</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}
+          </div>
+        </div>}
+        {past.length>0&&<div style={{marginTop:upcoming.length>0?6:0}}>
+          <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:6}}>Past</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}
+          </div>
+        </div>}
+
+        {/* Roster + History chips */}
+        <div style={{display:'flex',gap:10,marginTop:6}}>
+          <button onClick={function(){setActiveTab('roster');}} style={{flex:1,padding:'13px 10px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:T.shadow,letterSpacing:1,touchAction:'manipulation'}}>👥 Roster</button>
+          <button onClick={function(){setHistoryView({defaultSession:null,sessions:teamData.sessions||[]});}} style={{flex:1,padding:'13px 10px',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:T.shadow,letterSpacing:1,touchAction:'manipulation'}}>📊 History</button>
         </div>
       </div>
 
-      {activeTab==='session'&&(
-        <div style={{width:'100%',padding:'16px 14px',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'flex',gap:10}}>
-            <button onClick={function(){setEvSetupType('Practice');setEditEv(null);}} style={{flex:1,padding:'14px 12px',borderRadius:14,border:'2px solid #86efac',background:'#f0fdf4',cursor:'pointer',textAlign:'center',boxShadow:T.shadow}}>
-              <div style={{fontSize:22,marginBottom:4}}>🏋️</div>
-              <div style={{fontSize:13,fontWeight:900,color:'#14532d',letterSpacing:1,textTransform:'uppercase'}}>Practice</div>
+      {/* Fixed + Add button bottom-right */}
+      <div style={{position:'fixed',bottom:20,right:20,zIndex:50}}>
+        {/* Add type popup */}
+        {addMenuOpen&&(
+          <div style={{position:'absolute',bottom:66,right:0,background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadowMd,overflow:'hidden',minWidth:160,animation:'popin 0.15s ease'}}>
+            <button onClick={function(){setAddMenuOpen(false);setEvSetupType('Practice');setEditEv(null);}}
+              style={{width:'100%',padding:'14px 20px',border:'none',background:'transparent',color:T.t1,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:10,touchAction:'manipulation',borderBottom:'1px solid '+T.border}}>
+              <span>🏋️</span> Practice
             </button>
-            <button onClick={function(){setEvSetupType('Game');setEditEv(null);}} style={{flex:1,padding:'14px 12px',borderRadius:14,border:'2px solid #fde68a',background:'#fffbeb',cursor:'pointer',textAlign:'center',boxShadow:T.shadow}}>
-              <div style={{fontSize:22,marginBottom:4}}>🏆</div>
-              <div style={{fontSize:13,fontWeight:900,color:'#78350f',letterSpacing:1,textTransform:'uppercase'}}>Game</div>
+            <button onClick={function(){setAddMenuOpen(false);setEvSetupType('Game');setEditEv(null);}}
+              style={{width:'100%',padding:'14px 20px',border:'none',background:'transparent',color:T.t1,fontSize:14,fontWeight:700,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:10,touchAction:'manipulation'}}>
+              <span>🏆</span> Game
             </button>
           </div>
-          {upcoming.length>0&&<div>
-            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',margin:'8px 0 8px'}}>Upcoming</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}
-            </div>
-          </div>}
-          {past.length>0&&<div>
-            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',margin:'8px 0 8px'}}>Past</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              {past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}
-            </div>
-          </div>}
-        </div>
-      )}
+        )}
+        {/* Backdrop to dismiss */}
+        {addMenuOpen&&<div onClick={function(){setAddMenuOpen(false);}} style={{position:'fixed',inset:0,zIndex:-1}}/>}
+        <button onClick={function(){setAddMenuOpen(function(o){return !o;});}}
+          style={{width:56,height:56,borderRadius:28,border:'none',background:T.accent,color:'#fff',fontSize:28,fontWeight:300,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 4px 20px rgba(255,107,53,0.4)',touchAction:'manipulation',lineHeight:1}}>＋</button>
+      </div>
 
-      {activeTab==='schedule'&&(
-        <div style={{width:'100%',padding:'16px 14px',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
-            <button onClick={function(){setEvSetupType('Practice');setEditEv(null);}} style={{padding:'8px 14px',borderRadius:20,border:'1px solid '+T.green,background:'#f0fdf4',color:T.green,fontSize:11,fontWeight:700,cursor:'pointer'}}>+ Practice</button>
-            <button onClick={function(){setEvSetupType('Game');setEditEv(null);}} style={{padding:'8px 14px',borderRadius:20,border:'none',background:T.accent,color:'#fff',fontSize:11,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(255,107,53,0.3)'}}>+ Game</button>
-          </div>
-          {upcoming.length===0&&past.length===0&&<div style={{textAlign:'center',padding:'50px 20px',color:T.t4}}><div style={{fontSize:36,marginBottom:10}}>📅</div><div style={{fontSize:13,letterSpacing:2,textTransform:'uppercase'}}>No events scheduled</div></div>}
-          {upcoming.length>0&&<div>
-            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Upcoming</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>{upcoming.map(function(e){return <EventCard key={e.id} ev={e} isPast={false}/>;})}</div>
-          </div>}
-          {past.length>0&&<div>
-            <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:8}}>Past</div>
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>{past.map(function(e){return <EventCard key={e.id} ev={e} isPast={true}/>;})}</div>
-          </div>}
-        </div>
-      )}
-
+      {/* Roster tab (shown as overlay panel when activeTab==='roster') */}
       {activeTab==='roster'&&(
-        <div style={{width:'100%',padding:'16px 14px',display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{position:'fixed',inset:0,background:T.bg,zIndex:200,overflowY:'auto',maxWidth:520,margin:'0 auto'}}>
+        <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',position:'sticky',top:0,zIndex:10,boxShadow:T.shadow}}>
+          <button onClick={function(){setActiveTab('session');}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:1,textTransform:'uppercase',touchAction:'manipulation'}}>← Back</button>
+          <div style={{fontSize:16,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase',marginTop:4}}>{teamMeta.name} · Roster</div>
+        </div>
+        <div style={{padding:'14px 14px',display:'flex',flexDirection:'column',gap:10}}>
           <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
             <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div style={{fontSize:9,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase'}}>Coaching Staff</div>
@@ -1594,7 +1618,8 @@ function SessionTypeScreen(props){
               {players.length===0&&<div style={{textAlign:'center',padding:'20px',color:T.t4,fontSize:12}}>No players yet. Tap "+ Add Player" above to add one.</div>}
             </div>
           </div>
-        </div>
+        </div>{/* end padding div */}
+        </div>{/* end full-screen overlay */}
       )}
 
       {evSetupType&&<EventSetupModal type={evSetupType} existing={editEv} onStart={handleEventStart} onSave={handleEventSave} onCancel={function(){setEvSetupType(null);setEditEv(null);}}/>}
@@ -3884,6 +3909,70 @@ function HelpModal(props){
 
 
 // ── Team Selector ──────────────────────────────────────────────────────────────
+// ── LoadingAnimation ───────────────────────────────────────────────────────────
+function LoadingAnimation(props){
+  var onDone=props.onDone;
+  var phaseState=useState('bounce'); var phase=phaseState[0],setPhase=phaseState[1];
+  // phase: 'bounce' → 'arc' → 'through' → 'done'
+  useEffect(function(){
+    var t1=setTimeout(function(){setPhase('arc');},1200);
+    var t2=setTimeout(function(){setPhase('through');},2000);
+    var t3=setTimeout(function(){setPhase('done');if(onDone) onDone();},2700);
+    return function(){clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);};
+  },[]);
+  if(phase==='done') return null;
+  var W=320,CX=160,BY=260; // canvas coords
+  return (
+    <div style={{position:'fixed',inset:0,background:'#0f1b2d',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',zIndex:9999}}>
+      <div style={{position:'relative',width:W,height:320}}>
+        {/* Hoop — appears at arc phase */}
+        {(phase==='arc'||phase==='through')&&(
+          <div style={{position:'absolute',left:CX+90,top:130,animation:'hoopAppear 0.3s ease both',display:'flex',flexDirection:'column',alignItems:'center'}}>
+            {/* backboard */}
+            <div style={{width:4,height:40,background:'rgba(255,255,255,0.7)',borderRadius:2,marginBottom:-2,marginLeft:30}}/>
+            {/* rim */}
+            <div style={{width:52,height:10,borderRadius:'50%',border:'4px solid #f59e0b',background:'transparent',position:'relative'}}>
+              {/* net */}
+              <div style={{
+                position:'absolute',top:8,left:4,width:40,height:28,
+                borderLeft:'2px solid rgba(255,255,255,0.4)',
+                borderRight:'2px solid rgba(255,255,255,0.4)',
+                borderBottom:'2px solid rgba(255,255,255,0.4)',
+                borderRadius:'0 0 8px 8px',
+                animation:phase==='through'?'netSwing 0.5s ease':'none'
+              }}/>
+            </div>
+          </div>
+        )}
+        {/* Ball */}
+        {phase==='bounce'&&(
+          <div style={{position:'absolute',left:CX-22,top:BY-44,animation:'ballBounce 1.1s cubic-bezier(0.33,1,0.68,1) both'}}>
+            <div style={{width:44,height:44,borderRadius:'50%',background:'radial-gradient(circle at 35% 35%,#f97316,#c2410c)',border:'2px solid rgba(0,0,0,0.2)',boxShadow:'0 2px 12px rgba(249,115,22,0.6)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+              <div style={{width:36,height:4,border:'2px solid rgba(0,0,0,0.25)',borderRadius:'50%',transform:'rotate(-15deg)'}}/>
+            </div>
+          </div>
+        )}
+        {phase==='arc'&&(
+          <div style={{position:'absolute',left:CX-22,top:BY-44,animation:'ballArc 0.8s cubic-bezier(0.33,0,0.66,1) both'}}>
+            <div style={{width:44,height:44,borderRadius:'50%',background:'radial-gradient(circle at 35% 35%,#f97316,#c2410c)',border:'2px solid rgba(0,0,0,0.2)',boxShadow:'0 2px 12px rgba(249,115,22,0.6)'}}/>
+          </div>
+        )}
+        {phase==='through'&&(
+          <div style={{position:'absolute',left:CX+90+2,top:130+14,animation:'ballThrough 0.6s ease both'}}>
+            <div style={{width:36,height:36,borderRadius:'50%',background:'radial-gradient(circle at 35% 35%,#f97316,#c2410c)',border:'2px solid rgba(0,0,0,0.2)',boxShadow:'0 2px 12px rgba(249,115,22,0.6)'}}/>
+          </div>
+        )}
+        {/* Floor shadow */}
+        {phase==='bounce'&&(
+          <div style={{position:'absolute',left:CX-16,top:BY+2,width:32,height:8,borderRadius:'50%',background:'rgba(0,0,0,0.3)',animation:'pulse 1.1s ease infinite'}}/>
+        )}
+      </div>
+      <div style={{fontSize:28,fontWeight:900,letterSpacing:6,color:'#fff',textTransform:'uppercase',marginTop:-40,opacity:0.9}}>Shot Tracker</div>
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',letterSpacing:3,textTransform:'uppercase',marginTop:8}}>Loading…</div>
+    </div>
+  );
+}
+
 function TeamSelector(props){
   var teams=props.teams,onSelect=props.onSelect,onCreate=props.onCreate,onEdit=props.onEdit,onDelete=props.onDelete,onImport=props.onImport;
   var crState=useState(false);var cr=crState[0],setCr=crState[1];
@@ -3939,97 +4028,67 @@ function TeamSelector(props){
   }
 
   return (
-    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',padding:'0 0 40px',maxWidth:520,margin:'0 auto'}}>
-      <div style={{width:'100%',background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 20px 16px',textAlign:'center',boxShadow:T.shadow,position:'relative'}}>
-        <button onClick={function(){setHelpOpen(true);}} style={{position:'absolute',top:16,right:16,width:36,height:36,borderRadius:18,border:'1px solid '+T.border,background:T.bg,color:T.accent,fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,boxShadow:T.shadow}}>❓</button>
-        <div style={{fontSize:52,marginBottom:8}}>🏀</div>
+    <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',maxWidth:520,margin:'0 auto',paddingBottom:80}}>
+      {/* Top toolbar: import left, export right */}
+      <div style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 16px 0',position:'relative'}}>
+        <button onClick={function(){if(fileRef.current) fileRef.current.click();}} title="Import Backup"
+          style={{width:44,height:44,borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.blue,fontSize:22,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadow,touchAction:'manipulation'}}>↓</button>
+        <input ref={fileRef} type="file" accept=".json" onChange={handleImportFile} style={{display:'none'}}/>
+        <button onClick={handleExport} title="Export Backup"
+          style={{width:44,height:44,borderRadius:12,border:'1px solid '+T.border,background:T.card,color:'#7c3aed',fontSize:22,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadow,touchAction:'manipulation'}}>↑</button>
+      </div>
+
+      {/* Title */}
+      <div style={{textAlign:'center',padding:'18px 20px 0'}}>
+        <div style={{fontSize:52,marginBottom:6,lineHeight:1}}>🏀</div>
         <h1 style={{margin:'0 0 4px',fontSize:26,letterSpacing:4,color:T.t1,textTransform:'uppercase',fontWeight:900}}>Shot Tracker</h1>
-        <div style={{fontSize:11,color:T.accent,letterSpacing:3,textTransform:'uppercase',fontWeight:700,marginBottom:14}}>v4.0 · Practice and Game</div>
-        <div style={{display:'flex',background:T.bg,borderRadius:10,border:'1px solid '+T.border,overflow:'hidden'}}>
-          <button onClick={function(){setTab('teams');setHistTeam(null);}} style={{flex:1,padding:'10px 0',border:'none',cursor:'pointer',background:tab==='teams'?T.accent:'transparent',color:tab==='teams'?'#fff':T.t3,fontSize:11,letterSpacing:2,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s'}}>📋 Teams</button>
-          <button onClick={function(){setTab('history');setHistTeam(teams.length===1?teams[0]:null);}} style={{flex:1,padding:'10px 0',border:'none',cursor:'pointer',background:tab==='history'?T.accent:'transparent',color:tab==='history'?'#fff':T.t3,fontSize:11,letterSpacing:2,textTransform:'uppercase',fontWeight:700,transition:'all 0.2s'}}>📅 History</button>
+        <div style={{fontSize:10,color:T.t4,letterSpacing:3,textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Practice & Game</div>
+      </div>
+
+      {/* Import feedback */}
+      {importMsg&&<div style={{margin:'10px 14px 0',padding:'10px 14px',borderRadius:10,background:importMsg.indexOf('✓')===0?T.greenL:'rgba(220,38,38,0.1)',border:'1px solid '+(importMsg.indexOf('✓')===0?'#86efac':'#fca5a5'),fontSize:12,color:importMsg.indexOf('✓')===0?T.green:T.red,textAlign:'center',fontWeight:700,width:'calc(100% - 28px)'}}>{importMsg}</div>}
+
+      {/* Team list */}
+      <div style={{width:'100%',padding:'16px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
+        <StorageBar/>
+        {teams.length===0&&!cr&&(
+          <div style={{textAlign:'center',padding:'60px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
+            <div style={{fontSize:40}}>📋</div>
+            <div style={{fontSize:14,color:T.t4,letterSpacing:2,textTransform:'uppercase',fontWeight:700}}>No Teams Yet</div>
+          </div>
+        )}
+        {teams.map(function(t){
+          var col=tc(t.id);
+          return (
+            <div key={t.id} style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+              <div style={{height:4,background:'linear-gradient(90deg,'+col+','+col+'88)'}}/>
+              <div style={{padding:'14px 16px',display:'flex',alignItems:'center',gap:14}}>
+                <div style={{width:52,height:52,borderRadius:14,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,flexShrink:0,cursor:'pointer'}}
+                  onClick={function(){onSelect(t);}}>
+                  {t.logo||'🏀'}
+                </div>
+                <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={function(){onSelect(t);}}>
+                  <div style={{fontSize:17,fontWeight:900,color:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</div>
+                </div>
+                <button onClick={function(){setEt(t);setEn(t.name);setCd(false);}}
+                  style={{width:36,height:36,borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t3,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,touchAction:'manipulation'}}>✏️</button>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* + Add Team centered below list */}
+        <div style={{display:'flex',justifyContent:'center',marginTop:4}}>
+          <button onClick={function(){setCr(true);}}
+            style={{padding:'14px 36px',borderRadius:14,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:900,letterSpacing:3,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 20px rgba(255,107,53,0.35)',touchAction:'manipulation'}}>＋ Add Team</button>
         </div>
       </div>
 
-      {tab==='teams'&&(
-        <div style={{width:'100%',padding:'16px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
-          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <div style={{fontSize:10,letterSpacing:2,color:T.t4,textTransform:'uppercase',fontWeight:700}}>{teams.length>0?teams.length+' Team'+(teams.length!==1?'s':''):''}</div>
-            <button onClick={function(){setCr(true);}} style={{padding:'8px 16px',borderRadius:20,border:'none',background:T.accent,color:'#fff',fontSize:11,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 2px 8px rgba(255,107,53,0.3)'}}>＋ New Team</button>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            <button onClick={handleExport} style={{flex:1,padding:'9px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:'#7c3aed',fontSize:11,letterSpacing:1,cursor:'pointer',fontWeight:700,boxShadow:T.shadow}}>📤 Export Backup</button>
-            <button onClick={function(){if(fileRef.current) fileRef.current.click();}} style={{flex:1,padding:'9px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.blue,fontSize:11,letterSpacing:1,cursor:'pointer',fontWeight:700,boxShadow:T.shadow}}>📥 Import Backup</button>
-            <input ref={fileRef} type="file" accept=".json" onChange={handleImportFile} style={{display:'none'}}/>
-          </div>
-          <StorageBar/>
-          {importMsg&&<div style={{padding:'10px 14px',borderRadius:10,background:importMsg.indexOf('✓')===0?T.greenL:'rgba(220,38,38,0.1)',border:'1px solid '+(importMsg.indexOf('✓')===0?'#86efac':'#fca5a5'),fontSize:12,color:importMsg.indexOf('✓')===0?T.green:T.red,textAlign:'center',fontWeight:700}}>{importMsg}</div>}
-          {teams.length===0&&!cr&&(
-            <div style={{textAlign:'center',padding:'60px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
-              <div style={{fontSize:40}}>📋</div>
-              <div style={{fontSize:14,color:T.t4,letterSpacing:2,textTransform:'uppercase',fontWeight:700}}>No Teams Yet</div>
-              <button onClick={function(){setCr(true);}} style={{padding:'16px 32px',borderRadius:14,border:'none',background:T.accent,color:'#fff',fontSize:14,fontWeight:900,letterSpacing:4,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 20px rgba(255,107,53,0.35)'}}>🏀 Create First Team</button>
-            </div>
-          )}
-          {teams.map(function(t){
-            var col=tc(t.id);
-            return (
-              <div key={t.id} style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
-                <div style={{height:4,background:'linear-gradient(90deg,'+col+','+col+'88)'}}/>
-                <div style={{padding:'16px',display:'flex',alignItems:'center',gap:14}}>
-                  <div style={{width:48,height:48,borderRadius:12,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>🏀</div>
-                  <div style={{flex:1,minWidth:0,cursor:'pointer'}} onClick={function(){onSelect(t);}}>
-                    <div style={{fontSize:16,fontWeight:900,color:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</div>
-                    <div style={{fontSize:10,color:T.t4,marginTop:3}}>Created {fmtDate(t.createdAt.slice(0,10))}</div>
-                    <div style={{display:'flex',gap:10,marginTop:5,flexWrap:'wrap'}}>
-                      {t.playerCount>0&&<span style={{fontSize:9,color:col,fontWeight:700}}>👤 {t.playerCount} players</span>}
-                      {t.sessionCount>0&&<span style={{fontSize:9,color:T.green,fontWeight:700}}>📊 {t.sessionCount} sessions</span>}
-                      {t.totalPoints>0&&<span style={{fontSize:9,color:'#d97706',fontWeight:700}}>⭐ {t.totalPoints} pts</span>}
-                    </div>
-                  </div>
-                  <div style={{display:'flex',flexDirection:'column',gap:6,flexShrink:0}}>
-                    <button onClick={function(){onSelect(t);}} style={{width:38,height:38,borderRadius:10,border:'none',background:col,color:'#fff',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 2px 8px '+col+'44'}}>▶</button>
-                    <button onClick={function(){setEt(t);setEn(t.name);setCd(false);}} style={{width:38,height:38,borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t3,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>✏️</button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {tab==='history'&&(
-        <div style={{width:'100%',padding:'16px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
-          {teams.length===0&&<div style={{textAlign:'center',padding:'60px 20px',background:T.card,borderRadius:12,border:'1px solid '+T.border}}><div style={{fontSize:36,marginBottom:12}}>📋</div><div style={{fontSize:13,color:T.t4,textTransform:'uppercase',letterSpacing:2}}>No teams yet</div></div>}
-          {teams.length>0&&!histTeam&&(
-            <React.Fragment>
-              <div style={{fontSize:10,color:T.t4,letterSpacing:2,textTransform:'uppercase',fontWeight:700,marginBottom:2}}>Select a team to view history</div>
-              {teams.map(function(t){
-                var col=tc(t.id);
-                return (
-                  <button key={t.id} onClick={function(){setHistTeam(t);}}
-                    style={{width:'100%',background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'14px 16px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',textAlign:'left'}}>
-                    <div style={{width:10,height:10,borderRadius:'50%',background:col,flexShrink:0}}/>
-                    <div style={{flex:1,fontSize:15,fontWeight:900,color:T.t1}}>{t.name}</div>
-                    {t.sessionCount>0&&<span style={{fontSize:10,color:T.green,fontWeight:700}}>{t.sessionCount} sessions</span>}
-                    <div style={{fontSize:18,color:T.t4}}>›</div>
-                  </button>
-                );
-              })}
-            </React.Fragment>
-          )}
-          {histTeam&&(function(){
-            var td=getTeamData(histTeam);
-            return (
-              <React.Fragment>
-                {teams.length>1&&<button onClick={function(){setHistTeam(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:11,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← All Teams</button>}
-                <div style={{fontSize:14,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{histTeam.name}</div>
-                <HistoryView teamMeta={histTeam} players={td.players} sessions={td.sessions} onDelSession={function(id){var ns=td.sessions.filter(function(s){return s.id!==id;});lsSet(TK(histTeam.id),Object.assign({},td,{sessions:ns}));setHistTeam(Object.assign({},histTeam));}}/>
-              </React.Fragment>
-            );
-          })()}
-        </div>
-      )}
+      {/* ? Help button — bottom center, fixed */}
+      <div style={{position:'fixed',bottom:20,left:'50%',transform:'translateX(-50%)',zIndex:50}}>
+        <button onClick={function(){setHelpOpen(true);}}
+          style={{width:44,height:44,borderRadius:22,border:'1px solid '+T.border,background:T.card,color:T.t3,fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadowMd,touchAction:'manipulation'}}>?</button>
+      </div>
 
       {cr&&<MultiStepTeamModal onDone={function(name,coaches,players){setCr(false);onCreate(name,coaches,players);}} onCancel={function(){setCr(false);}}/>}
 
@@ -4308,6 +4367,10 @@ function App(){
     setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
+
+  var showingState=useState(true); var showingAnim=showingState[0],setShowingAnim=showingState[1];
+
+  if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
   if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
 
