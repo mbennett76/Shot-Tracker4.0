@@ -1373,6 +1373,144 @@ function EventInfoPopup(props){
   );
 }
 
+// ── Team History Page ─────────────────────────────────────────────────────────
+function TeamHistoryPage(props){
+  var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions;
+  var onDelSession=props.onDelSession,onClose=props.onClose;
+  var defaultSession=props.defaultSession||null;
+
+  var viewGameState=useState(defaultSession?'game':null);
+  var viewGame=viewGameState[0],setViewGame=viewGameState[1];
+
+  // Build unique game events (group sessions by date+opponent+label)
+  var gSessions=sessions.filter(function(s){return s.sessionType==='Game';});
+  var gameMap={};
+  gSessions.forEach(function(s){
+    var key=s.date+'|'+(s.opponent||'')+'|'+(s.label||'');
+    if(!gameMap[key]) gameMap[key]={key:key,date:s.date,opponent:s.opponent||'',label:s.label||'',gameScore:s.gameScore,sessions:[]};
+    gameMap[key].sessions.push(s);
+  });
+  var games=Object.values(gameMap).sort(function(a,b){return b.date.localeCompare(a.date);});
+
+  // Win/Loss record
+  var wins=0,losses=0,ties=0;
+  games.forEach(function(g){
+    if(g.gameScore){
+      if(g.gameScore.my>g.gameScore.opp) wins++;
+      else if(g.gameScore.my<g.gameScore.opp) losses++;
+      else ties++;
+    }
+  });
+
+  // Currently selected game
+  var selectedGameState=useState(defaultSession?games.find(function(g){return g.sessions.some(function(s){return s.id===defaultSession.id;});})||null:null);
+  var selectedGame=selectedGameState[0],setSelectedGame=selectedGameState[1];
+
+  if(viewGame==='game'&&selectedGame){
+    var gss=selectedGame.sessions;
+    var score=selectedGame.gameScore;
+    var isW=score&&score.my>score.opp;
+    var isL=score&&score.my<score.opp;
+    var accentC=isW?T.green:isL?T.red:T.t3;
+    return (
+      <div style={{position:'fixed',inset:0,background:T.bg,zIndex:999,overflowY:'auto',maxWidth:520,margin:'0 auto'}}>
+        <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:10,boxShadow:T.shadow}}>
+          <button onClick={function(){setViewGame(null);setSelectedGame(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← History</button>
+          <div style={{flex:1,textAlign:'center'}}>
+            <div style={{fontSize:19,fontWeight:900,color:T.t1}}>vs {selectedGame.opponent||'Opponent'}</div>
+            <div style={{fontSize:14,color:T.t3,marginTop:2}}>{fmtDate(selectedGame.date)}</div>
+          </div>
+          {score&&<div style={{fontSize:22,fontWeight:900,color:accentC,textAlign:'right',flexShrink:0}}>{score.my}–{score.opp}<div style={{fontSize:12,fontWeight:800,color:accentC,letterSpacing:1,textTransform:'uppercase'}}>{isW?'WIN':isL?'LOSS':'TIE'}</div></div>}
+        </div>
+        <div style={{padding:'14px 14px',display:'flex',flexDirection:'column',gap:12}}>
+          <HistoryView
+            teamMeta={teamMeta}
+            players={players}
+            sessions={gss}
+            defaultSession={gss[0]||null}
+            onDelSession={onDelSession}
+          />
+          <button onClick={function(){generateReport(gss,players,teamMeta);}}
+            style={{width:'100%',padding:'15px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:17,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)',touchAction:'manipulation'}}>
+            📄 Export Game Report
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Overview
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:998,overflowY:'auto',maxWidth:520,margin:'0 auto'}}>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 18px',position:'sticky',top:0,zIndex:10,boxShadow:T.shadow}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:8}}>
+          <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← Back</button>
+          <div style={{flex:1}}/>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:26,fontWeight:900,color:T.t1,letterSpacing:1}}>{teamMeta.name}</div>
+          {games.length>0&&(
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:14,marginTop:8}}>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:28,fontWeight:900,color:T.green,lineHeight:1}}>{wins}</div>
+                <div style={{fontSize:12,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>W</div>
+              </div>
+              <div style={{width:1,height:36,background:T.border}}/>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:28,fontWeight:900,color:T.red,lineHeight:1}}>{losses}</div>
+                <div style={{fontSize:12,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>L</div>
+              </div>
+              {ties>0&&(
+                <div style={{textAlign:'center'}}>
+                  <div style={{width:1,height:36,background:T.border}}/>
+                  <div style={{fontSize:28,fontWeight:900,color:T.t3,lineHeight:1}}>{ties}</div>
+                  <div style={{fontSize:12,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>T</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{padding:'14px 14px 40px',display:'flex',flexDirection:'column',gap:10}}>
+        {games.length===0&&(
+          <div style={{textAlign:'center',padding:'60px 20px',background:T.card,borderRadius:14,border:'1px solid '+T.border}}>
+            <div style={{fontSize:36,marginBottom:12}}>📋</div>
+            <div style={{fontSize:16,color:T.t4,letterSpacing:1}}>No games saved yet</div>
+          </div>
+        )}
+        {games.map(function(g){
+          var score=g.gameScore;
+          var isW=score&&score.my>score.opp;
+          var isL=score&&score.my<score.opp;
+          var resultColor=isW?T.green:isL?T.red:T.t3;
+          var resultLabel=isW?'W':isL?'L':score?'T':'';
+          return (
+            <div key={g.key} onClick={function(){setSelectedGame(g);setViewGame('game');}} style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden',cursor:'pointer',display:'flex',alignItems:'stretch',minHeight:72}}>
+              <div style={{width:5,background:resultColor,flexShrink:0}}/>
+              <div style={{display:'flex',alignItems:'center',flex:1,padding:'12px 14px',gap:12}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:19,fontWeight:900,color:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>vs {g.opponent||'Opponent'}</div>
+                  <div style={{fontSize:14,color:T.t3,marginTop:3}}>{fmtDate(g.date)}</div>
+                </div>
+                {score?(
+                  <div style={{textAlign:'center',flexShrink:0}}>
+                    <div style={{fontSize:22,fontWeight:900,color:T.t1,lineHeight:1}}>{score.my}–{score.opp}</div>
+                    <div style={{fontSize:13,fontWeight:900,color:resultColor,letterSpacing:2,textTransform:'uppercase',marginTop:3}}>{resultLabel}</div>
+                  </div>
+                ):<div style={{fontSize:13,color:T.t4,fontStyle:'italic'}}>no score</div>}
+                <div style={{fontSize:20,color:T.t4}}>›</div>
+              </div>
+            </div>
+          );
+        })}
+        {sessions.length>0&&(
+          <button onClick={function(){dlCSV(teamMeta.name+'-season.csv',sessions);}} style={{marginTop:8,padding:'16px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.green,fontSize:17,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',width:'100%',fontWeight:700,boxShadow:T.shadow,touchAction:'manipulation'}}>📥 Export Team CSV</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Player Quick Menu ──────────────────────────────────────────────────────────
 function PlayerQuickMenu(props){
   var player=props.player,onStats=props.onStats,onEdit=props.onEdit,onClose=props.onClose;
@@ -1839,25 +1977,18 @@ function SessionTypeScreen(props){
         return <EventInfoPopup event={viewEv} players={players} coaches={coaches} isPast={evIsPast} onStart={handleEventStart} onViewStats={function(){handleViewStats(viewEv);}} onEdit={function(){setEditEv(viewEv);setEvSetupType(viewEv.type);setViewEv(null);}} onDelete={handleDeleteEvent} onClose={function(){setViewEv(null);}}/>;
       })()}
       {historyView&&(
-        <div style={{position:'fixed',inset:0,background:T.bg,zIndex:998,overflowY:'auto'}}>
-          <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',display:'flex',alignItems:'center',gap:12,boxShadow:T.shadow}}>
-            <button onClick={function(){setHistoryView(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0}}>← Back</button>
-            <div style={{fontSize:19,fontWeight:900,color:T.t1,letterSpacing:2,textTransform:'uppercase'}}>{teamMeta.name}</div>
-          </div>
-          <div style={{maxWidth:520,margin:'0 auto',padding:'0 0 40px'}}>
-            <HistoryView
-              teamMeta={teamMeta}
-              players={players}
-              sessions={teamData.sessions||[]}
-              defaultSession={historyView.defaultSession}
-              onDelSession={function(id){
-                var ns=(teamData.sessions||[]).filter(function(s){return s.id!==id;});
-                onUpdateData({sessions:ns});
-                if(historyView.defaultSession&&historyView.defaultSession.id===id) setHistoryView(null);
-              }}
-            />
-          </div>
-        </div>
+        <TeamHistoryPage
+          teamMeta={teamMeta}
+          players={players}
+          sessions={teamData.sessions||[]}
+          defaultSession={historyView.defaultSession}
+          onDelSession={function(id){
+            var ns=(teamData.sessions||[]).filter(function(s){return s.id!==id;});
+            onUpdateData({sessions:ns});
+            if(historyView.defaultSession&&historyView.defaultSession.id===id) setHistoryView(null);
+          }}
+          onClose={function(){setHistoryView(null);}}
+        />
       )}
       {editPlayer&&<PlayerContactModal player={editPlayer} onSave={function(updates){savePlayers(players.map(function(p){return p.id===editPlayer.id?Object.assign({},p,updates):p;}));setEditPlayer(null);}} onClose={function(){setEditPlayer(null);}} onDelete={function(){handleDeletePlayer(editPlayer.id);setEditPlayer(null);}}/>}
       {playerMenu&&<PlayerQuickMenu player={playerMenu} col={pc(playerMenu,players.indexOf(playerMenu))} onStats={function(){setViewPlayerStats(playerMenu);setPlayerMenu(null);}} onEdit={function(){setEditPlayer(playerMenu);setPlayerMenu(null);}} onClose={function(){setPlayerMenu(null);}}/>}
