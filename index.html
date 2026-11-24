@@ -1440,24 +1440,43 @@ function SessionTypeScreen(props){
   function EventCard(evProps){
     var e=evProps.ev,isPast=evProps.isPast;
     var isG=e.type==='Game';
-    var dotColor=isG?'#d97706':T.green;
+    var accentColor=isG?'#f59e0b':'#10b981';
+    var isHome=e.homeAway==='Home';
+    var oppLine=isG?(isHome?'VS. ':(e.opponent||'Opponent')):'Practice';
+    var oppPrefix=isG&&!isHome?'@ ':'';
+    var oppName=isG?(isHome?(e.opponent||'Opponent'):''):'' ;
+    var dateObj=new Date(e.date+'T12:00:00');
+    var dayNum=dateObj.getDate();
+    var monthStr=dateObj.toLocaleString('en-US',{month:'short'}).toUpperCase();
+    var gameTimeTxt=e.time?fmtTime12(e.time):'';
+    var arrTimeTxt=e.time?calcArrival(e.time,e.arrivalOffset||30):'';
     return (
       <div onClick={function(){setViewEv(e);}} style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden',cursor:'pointer'}}>
-        <div style={{height:3,background:dotColor}}/>
-        <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:12}}>
-          <div style={{textAlign:'center',minWidth:36,flexShrink:0}}>
-            <div style={{fontSize:21,fontWeight:900,color:dotColor,lineHeight:1}}>{new Date(e.date+'T12:00:00').getDate()}</div>
-            <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>{new Date(e.date+'T12:00:00').toLocaleString('en-US',{month:'short'})}</div>
+        <div style={{height:5,background:accentColor}}/>
+        <div style={{display:'flex',alignItems:'stretch',minHeight:72}}>
+          {/* Left: date */}
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'10px 14px 10px 14px',flexShrink:0,minWidth:52,borderRight:'1px solid '+T.border,background:accentColor+'18'}}>
+            <div style={{fontSize:26,fontWeight:900,color:accentColor,lineHeight:1}}>{dayNum}</div>
+            <div style={{fontSize:13,color:T.t2,fontWeight:800,letterSpacing:1,textTransform:'uppercase',marginTop:2}}>{monthStr}</div>
           </div>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:15,fontWeight:700,color:isPast?T.t3:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{isG?'vs '+e.opponent:'Practice'}</div>
-            <div style={{fontSize:13,color:T.t4,marginTop:1}}>{e.time?fmtTime12(e.time):''}{e.venue?' · '+e.venue:''}</div>
-            {e.time&&!isPast&&<div style={{fontSize:13,color:T.accent,fontWeight:700,marginTop:1}}>Arrive: {calcArrival(e.time,e.arrivalOffset||30)}</div>}
+          {/* Middle: opponent / practice */}
+          <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',justifyContent:'center',padding:'10px 12px'}}>
+            {isG?(
+              <div style={{fontSize:17,fontWeight:900,color:isPast?T.t3:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                {isHome?'VS. ':'@ '}<span style={{color:isPast?T.t3:T.t1}}>{e.opponent||'Opponent'}</span>
+              </div>
+            ):(
+              <div style={{fontSize:17,fontWeight:900,color:isPast?T.t3:T.t1}}>Practice</div>
+            )}
+            {e.venue?<div style={{fontSize:13,color:T.t4,marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.venue}</div>:null}
           </div>
-          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:3,flexShrink:0}}>
-            <span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:20,background:isG?'#fef3c7':'#dcfce7',color:isG?'#92400e':'#14532d'}}>{isG?'GAME':'PRACTICE'}</span>
-            {isG&&e.homeAway&&<span style={{fontSize:11,color:T.t4}}>{e.homeAway==='Home'?'🏠':'✈️'} {e.homeAway}</span>}
-          </div>
+          {/* Right: game time + arrive */}
+          {gameTimeTxt?(
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'10px 14px',flexShrink:0,borderLeft:'1px solid '+T.border,minWidth:70}}>
+              <div style={{fontSize:18,fontWeight:900,color:isPast?T.t4:T.t1,lineHeight:1,textAlign:'center'}}>{gameTimeTxt}</div>
+              {arrTimeTxt&&!isPast&&<div style={{fontSize:12,color:'#dc2626',fontWeight:700,marginTop:4,textAlign:'center',lineHeight:1.2}}>arrive{'\n'}{arrTimeTxt}</div>}
+            </div>
+          ):null}
         </div>
       </div>
     );
