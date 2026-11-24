@@ -4185,12 +4185,8 @@ function generateReport(sessions,players,teamMeta){
   playerPages+
   '</body></html>';
 
-  var w=window.open('','_blank');
-  if(w){
-    w.document.write(html);
-    w.document.close();
-    setTimeout(function(){w.print();},400);
-  }
+  var ev=new CustomEvent('showReport',{detail:{html:html}});
+  window.dispatchEvent(ev);
 }
 
 // ── Help Modal ─────────────────────────────────────────────────────────────────
@@ -4528,6 +4524,44 @@ function StorageBar(){
   );
 }
 
+// ── Report Viewer ─────────────────────────────────────────────────────────────
+function ReportViewer(props){
+  var html=props.html,onClose=props.onClose;
+  function handlePrint(){
+    var w=window.open('','_blank');
+    if(w){w.document.write(html);w.document.close();setTimeout(function(){w.print();},400);}
+  }
+  function handleShare(){
+    if(navigator.share){
+      var blob=new Blob([html],{type:'text/html'});
+      var file=new File([blob],'game-report.html',{type:'text/html'});
+      navigator.share({title:'Game Report',files:[file]}).catch(function(){});
+    } else {
+      var blob2=new Blob([html],{type:'text/html'});
+      var url=URL.createObjectURL(blob2);
+      var a=document.createElement('a');
+      a.href=url;a.download='game-report.html';
+      document.body.appendChild(a);a.click();
+      setTimeout(function(){URL.revokeObjectURL(url);a.remove();},1000);
+    }
+  }
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2000,display:'flex',flexDirection:'column'}}>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0}}>
+        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← Back</button>
+        <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
+        <button onClick={handlePrint} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:14,fontWeight:700,touchAction:'manipulation',padding:'4px 8px'}}>🖨️ Print</button>
+        <button onClick={handleShare} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:14,fontWeight:700,touchAction:'manipulation',padding:'4px 8px',marginLeft:4}}>📤 Share</button>
+      </div>
+      <iframe
+        srcDoc={html}
+        style={{flex:1,border:'none',width:'100%'}}
+        title="Game Report"
+      />
+    </div>
+  );
+}
+
 // ── App ────────────────────────────────────────────────────────────────────────
 function App(){
   // Start from localStorage cache; Firebase load happens in useEffect below
@@ -4548,6 +4582,7 @@ function App(){
   var fbLoadedState=useState(false);
   var fbLoaded=fbLoadedState[0],setFbLoaded=fbLoadedState[1];
   var showingState=useState(true); var showingAnim=showingState[0],setShowingAnim=showingState[1];
+  var reportHtmlState=useState(null);var reportHtml=reportHtmlState[0],setReportHtml=reportHtmlState[1];
   // teamDataCache: {[id]: {players,sessions,...}} — loaded from Firebase per team
   var teamDataCacheState=useState({});
   var teamDataCache=teamDataCacheState[0],setTeamDataCache=teamDataCacheState[1];
@@ -4657,6 +4692,12 @@ function App(){
   // On mount: load teams list from Firebase; if Firebase is empty but localStorage
   // has data, migrate everything up to Firebase automatically (runs once).
   useEffect(function(){
+    function onReport(e){setReportHtml(e.detail.html);}
+    window.addEventListener('showReport',onReport);
+    return function(){window.removeEventListener('showReport',onReport);};
+  },[]);
+
+  useEffect(function(){
     fbLoadTeamList().then(function(fbTeams){
       if(fbTeams&&Array.isArray(fbTeams)&&fbTeams.length>0){
         // Firebase has data — use it as source of truth
@@ -4749,6 +4790,8 @@ function App(){
     setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
+
+  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>;
 
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
