@@ -1618,8 +1618,8 @@ function SessionTypeScreen(props){
               {players.length===0&&<div style={{textAlign:'center',padding:'20px',color:T.t4,fontSize:12}}>No players yet. Tap "+ Add Player" above to add one.</div>}
             </div>
           </div>
-        </div>{/* end padding div */}
-        </div>{/* end full-screen overlay */}
+        </div>
+        </div>
       )}
 
       {evSetupType&&<EventSetupModal type={evSetupType} existing={editEv} onStart={handleEventStart} onSave={handleEventSave} onCancel={function(){setEvSetupType(null);setEditEv(null);}}/>}
