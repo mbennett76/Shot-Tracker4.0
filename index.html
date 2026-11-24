@@ -1227,6 +1227,7 @@ function PlayerContactModal(props){
         </div>}
         <div style={{display:'flex',gap:10,marginTop:8}}>
           <button onClick={onClose} style={{flex:1,padding:'12px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer'}}>Cancel</button>
+          {props.onDelete&&<button onClick={function(){if(props.onDelete) props.onDelete();}} style={{padding:'12px 14px',borderRadius:12,border:'1px solid #fecaca',background:'#fef2f2',color:T.red,fontSize:16,fontWeight:700,cursor:'pointer'}}>🗑</button>}
           <button onClick={function(){if(num.trim()) onSave({number:num.trim(),name:name.trim(),email:email.trim(),cell:cell.trim(),parent:showPar?{name:pname.trim(),email:pemail.trim(),cell:pcell.trim()}:null});}} disabled={!num.trim()} style={{flex:2,padding:'12px 0',borderRadius:12,border:'none',background:num.trim()?T.accent:'#e5e7eb',color:num.trim()?'#fff':T.t4,fontSize:17,fontWeight:700,cursor:num.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
         </div>
       </div>
@@ -1372,6 +1373,208 @@ function EventInfoPopup(props){
   );
 }
 
+// ── Player Quick Menu ──────────────────────────────────────────────────────────
+function PlayerQuickMenu(props){
+  var player=props.player,onStats=props.onStats,onEdit=props.onEdit,onClose=props.onClose;
+  var col=props.col||T.accent;
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1200,padding:20}} onClick={onClose}>
+      <div style={{background:T.card,borderRadius:20,width:'100%',maxWidth:320,boxShadow:T.shadowMd,overflow:'hidden',animation:'popin 0.15s ease'}} onClick={function(e){e.stopPropagation();}}>
+        <div style={{padding:'20px 20px 14px',textAlign:'center',borderBottom:'1px solid '+T.border}}>
+          <div style={{width:52,height:52,borderRadius:14,background:col+'22',border:'2px solid '+col+'66',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,fontWeight:900,color:col,margin:'0 auto 10px'}}>{player.number}</div>
+          <div style={{fontSize:20,fontWeight:900,color:T.t1}}>{player.name||'#'+player.number}</div>
+        </div>
+        <div style={{display:'flex',flexDirection:'column',gap:0}}>
+          <button onClick={onStats} style={{padding:'18px 20px',border:'none',borderBottom:'1px solid '+T.border,background:'transparent',color:T.t1,fontSize:18,fontWeight:700,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12}}>
+            <span style={{fontSize:22}}>📊</span> Stats
+          </button>
+          <button onClick={onEdit} style={{padding:'18px 20px',border:'none',background:'transparent',color:T.t1,fontSize:18,fontWeight:700,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:12}}>
+            <span style={{fontSize:22}}>✏️</span> Edit Player
+          </button>
+        </div>
+        <div style={{padding:'12px 20px 20px'}}>
+          <button onClick={onClose} style={{width:'100%',padding:'12px',borderRadius:12,border:'1px solid '+T.border,background:T.bg,color:T.t3,fontSize:16,fontWeight:700,cursor:'pointer'}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Player Game Detail ─────────────────────────────────────────────────────────
+function PlayerGameDetail(props){
+  var session=props.session,player=props.player,onClose=props.onClose;
+  var isGame=session.sessionType==='Game';
+  var shots=session.shots||[];
+  var ftShots=session.ftShots||[];
+  var fgm=shots.filter(function(s){return s.make;}).length;
+  var fg3=shots.filter(function(s){return s.type==='3-Pointer';});
+  var fg3m=fg3.filter(function(s){return s.make;}).length;
+  var ftm=ftShots.filter(function(s){return s.make;}).length;
+  var pts=calcPts(shots,ftShots);
+  var fgPct=shots.length?Math.round(fgm/shots.length*100):null;
+  var fg3Pct=fg3.length?Math.round(fg3m/fg3.length*100):null;
+  var ftPct=ftShots.length?Math.round(ftm/ftShots.length*100):null;
+  var qd=session.quarterData||[];
+  var totals={};
+  GSTATS.forEach(function(g){totals[g.key]=qd.reduce(function(a,q){return a+(q[g.key]||0);},0);});
+  var statLine=[
+    {l:'PTS',v:pts,big:true},
+    {l:'FGM-A',v:fgm+'-'+shots.length},
+    {l:'FG%',v:fgPct!==null?fgPct+'%':'—'},
+    {l:'3PM-A',v:fg3m+'-'+fg3.length},
+    {l:'3P%',v:fg3Pct!==null?fg3Pct+'%':'—'},
+    {l:'FTM-A',v:ftm+'-'+ftShots.length},
+    {l:'FT%',v:ftPct!==null?ftPct+'%':'—'},
+    {l:'OR',v:totals.oReb||0},
+    {l:'DR',v:totals.dReb||0},
+    {l:'REB',v:(totals.oReb||0)+(totals.dReb||0)},
+    {l:'AST',v:totals.ast||0},
+    {l:'STL',v:totals.stl||0},
+    {l:'TO',v:totals.to||0},
+    {l:'+/-',v:session.plusMinus!=null?session.plusMinus:'—'}
+  ];
+  var heatData={};
+  TYPES.concat(['Free Throw']).forEach(function(zone){
+    var zs=zone==='Free Throw'?ftShots:shots.filter(function(s){return s.type===zone;});
+    var zm=zs.filter(function(s){return s.make;}).length;
+    heatData[zone]={makes:zm,attempts:zs.length,pct:zs.length?Math.round(zm/zs.length*100):null};
+  });
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:1300,overflowY:'auto',maxWidth:520,margin:'0 auto'}}>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:10,boxShadow:T.shadow}}>
+        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← Back</button>
+        <div style={{flex:1}}>
+          <div style={{fontSize:19,fontWeight:900,color:T.t1}}>{isGame?(session.opponent||'Opponent'):'Practice'}</div>
+          <div style={{fontSize:14,color:T.t3,marginTop:2}}>{fmtDate(session.date)}</div>
+        </div>
+        <div style={{fontSize:28,fontWeight:900,color:T.accent}}>{pts} pts</div>
+      </div>
+      <div style={{padding:'16px 14px',display:'flex',flexDirection:'column',gap:16}}>
+        <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+          <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,fontSize:13,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>Stat Line</div>
+          <div style={{padding:'12px 14px',display:'flex',flexWrap:'wrap',gap:8}}>
+            {statLine.map(function(s){return (
+              <div key={s.l} style={{minWidth:60,flex:'1 0 60px',textAlign:'center',background:T.bg,borderRadius:10,padding:'10px 6px',border:'1px solid '+T.border}}>
+                <div style={{fontSize:s.big?24:18,fontWeight:900,color:s.big?T.accent:T.t1,lineHeight:1}}>{s.v}</div>
+                <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginTop:4}}>{s.l}</div>
+              </div>
+            );})}
+          </div>
+        </div>
+        <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+          <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,fontSize:13,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>Shot Map</div>
+          <div style={{padding:'10px'}}>
+            <Court shots={shots} ftShots={ftShots} mode={null} onShot={function(){}} readOnly={true} pCol={T.accent} showHeat={false} heatData={heatData}/>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Player Stats Page ──────────────────────────────────────────────────────────
+function PlayerStatsPage(props){
+  var player=props.player,allSessions=props.allSessions,onClose=props.onClose;
+  var col=props.col||T.accent;
+  var viewGameState=useState(null);var viewGame=viewGameState[0],setViewGame=viewGameState[1];
+  var ps=allSessions.filter(function(s){return s.playerId===player.id;}).sort(function(a,b){return b.date.localeCompare(a.date);});
+  var gameSess=ps.filter(function(s){return s.sessionType==='Game';});
+  var n=gameSess.length||1;
+  function avg(v){return gameSess.length?Math.round(v/gameSess.length*10)/10:0;}
+  var allShots=ps.reduce(function(a,s){return a.concat(s.shots||[]);}, []);
+  var allFT=ps.reduce(function(a,s){return a.concat(s.ftShots||[]);}, []);
+  var seasonFGM=allShots.filter(function(s){return s.make;}).length;
+  var seasonFG3=allShots.filter(function(s){return s.type==='3-Pointer';});
+  var seasonFG3M=seasonFG3.filter(function(s){return s.make;}).length;
+  var seasonFTM=allFT.filter(function(s){return s.make;}).length;
+  var gShots=gameSess.reduce(function(a,s){return a.concat(s.shots||[]);}, []);
+  var gFT=gameSess.reduce(function(a,s){return a.concat(s.ftShots||[]);}, []);
+  var gFGM=gShots.filter(function(s){return s.make;}).length;
+  var gFG3=gShots.filter(function(s){return s.type==='3-Pointer';});
+  var gFG3M=gFG3.filter(function(s){return s.make;}).length;
+  var gFTM=gFT.filter(function(s){return s.make;}).length;
+  var gPts=calcPts(gShots,gFT);
+  var gTotals={};
+  GSTATS.forEach(function(g){gTotals[g.key]=gameSess.reduce(function(a,s){return a+(s[g.key]||0);},0);});
+  var heatData={};
+  TYPES.concat(['Free Throw']).forEach(function(zone){
+    var zs=zone==='Free Throw'?allFT:allShots.filter(function(s){return s.type===zone;});
+    var zm=zs.filter(function(s){return s.make;}).length;
+    heatData[zone]={makes:zm,attempts:zs.length,pct:zs.length?Math.round(zm/zs.length*100):null};
+  });
+  var perGame=[
+    {l:'PTS',v:avg(gPts)},
+    {l:'FG%',v:gShots.length?Math.round(gFGM/gShots.length*100)+'%':'—'},
+    {l:'3P%',v:gFG3.length?Math.round(gFG3M/gFG3.length*100)+'%':'—'},
+    {l:'FT%',v:gFT.length?Math.round(gFTM/gFT.length*100)+'%':'—'},
+    {l:'OR',v:avg(gTotals.oReb||0)},
+    {l:'DR',v:avg(gTotals.dReb||0)},
+    {l:'REB',v:avg((gTotals.oReb||0)+(gTotals.dReb||0))},
+    {l:'AST',v:avg(gTotals.ast||0)},
+    {l:'STL',v:avg(gTotals.stl||0)},
+    {l:'TO',v:avg(gTotals.to||0)},
+    {l:'+/-',v:gameSess.length?Math.round(gameSess.reduce(function(a,s){return a+(s.plusMinus||0);},0)/gameSess.length*10)/10:'—'}
+  ];
+  if(viewGame) return <PlayerGameDetail session={viewGame} player={player} onClose={function(){setViewGame(null);}}/>;
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:1100,overflowY:'auto',maxWidth:520,margin:'0 auto'}}>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:10,boxShadow:T.shadow}}>
+        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← Roster</button>
+        <div style={{flex:1}}>
+          <div style={{width:38,height:38,borderRadius:10,background:col+'22',border:'2px solid '+col+'55',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,fontWeight:900,color:col,display:'inline-flex',marginRight:10,verticalAlign:'middle'}}>{player.number}</div>
+          <span style={{fontSize:20,fontWeight:900,color:T.t1,verticalAlign:'middle'}}>{player.name||'#'+player.number}</span>
+        </div>
+      </div>
+      <div style={{padding:'14px 14px',display:'flex',flexDirection:'column',gap:14}}>
+        <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+          <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,fontSize:13,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>Games Played ({gameSess.length})</div>
+          {gameSess.length===0&&<div style={{padding:'24px',textAlign:'center',color:T.t4,fontSize:15}}>No game sessions recorded yet.</div>}
+          {gameSess.map(function(s){
+            var sh=s.shots||[];var ft=s.ftShots||[];
+            var pts=calcPts(sh,ft);
+            var fgm=sh.filter(function(x){return x.make;}).length;
+            var pct=sh.length?Math.round(fgm/sh.length*100):null;
+            return (
+              <div key={s.id} onClick={function(){setViewGame(s);}} style={{padding:'12px 14px',borderBottom:'1px solid '+T.border,display:'flex',alignItems:'center',gap:10,cursor:'pointer',background:'transparent'}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:17,fontWeight:800,color:T.t1}}>vs {s.opponent||'Opponent'}</div>
+                  <div style={{fontSize:14,color:T.t3,marginTop:2}}>{fmtDate(s.date)}</div>
+                </div>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{fontSize:22,fontWeight:900,color:col}}>{pts} <span style={{fontSize:14,color:T.t4,fontWeight:600}}>pts</span></div>
+                  {pct!==null&&<div style={{fontSize:13,color:T.t3}}>{fgm}/{sh.length} FG ({pct}%)</div>}
+                </div>
+                <div style={{color:T.t4,fontSize:18}}>›</div>
+              </div>
+            );
+          })}
+        </div>
+        {allShots.length>0&&(
+          <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+            <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,fontSize:13,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>Season Shot Map</div>
+            <div style={{padding:'10px'}}>
+              <Court shots={allShots} ftShots={allFT} mode={null} onShot={function(){}} readOnly={true} pCol={col} showHeat={true} heatData={heatData}/>
+            </div>
+          </div>
+        )}
+        {gameSess.length>0&&(
+          <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,overflow:'hidden',boxShadow:T.shadow}}>
+            <div style={{padding:'10px 14px',borderBottom:'1px solid '+T.border,fontSize:13,fontWeight:800,color:T.t4,letterSpacing:2,textTransform:'uppercase'}}>Per Game Averages ({gameSess.length} games)</div>
+            <div style={{padding:'12px 14px',display:'flex',flexWrap:'wrap',gap:8}}>
+              {perGame.map(function(s){return (
+                <div key={s.l} style={{minWidth:62,flex:'1 0 62px',textAlign:'center',background:T.bg,borderRadius:10,padding:'10px 4px',border:'1px solid '+T.border}}>
+                  <div style={{fontSize:20,fontWeight:900,color:s.l==='PTS'?col:T.t1,lineHeight:1}}>{s.v}</div>
+                  <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginTop:4}}>{s.l}</div>
+                </div>
+              );})}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Session Type Screen ────────────────────────────────────────────────────────
 function SessionTypeScreen(props){
   var teamMeta=props.teamMeta,teamData=props.teamData,onStartSession=props.onStartSession,onUpdateData=props.onUpdateData,onBack=props.onBack;
@@ -1391,6 +1594,8 @@ function SessionTypeScreen(props){
   var addPNumState=useState('');var addPNum=addPNumState[0],setAddPNum=addPNumState[1];
   var addPNameState=useState('');var addPName=addPNameState[0],setAddPName=addPNameState[1];
   var confDelPlayerState=useState(null);var confDelPlayer=confDelPlayerState[0],setConfDelPlayer=confDelPlayerState[1];
+  var playerMenuState=useState(null);var playerMenu=playerMenuState[0],setPlayerMenu=playerMenuState[1];
+  var viewPlayerStatsState=useState(null);var viewPlayerStats=viewPlayerStatsState[0],setViewPlayerStats=viewPlayerStatsState[1];
 
   var now=new Date();now.setHours(0,0,0,0);
   var upcoming=schedule.filter(function(e){return new Date(e.date+'T12:00:00')>=now;}).sort(function(a,b){return a.date.localeCompare(b.date)||(a.time||'').localeCompare(b.time||'');});
@@ -1608,30 +1813,15 @@ function SessionTypeScreen(props){
                 </div>
               </div>
             )}
-            <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:6}}>
+            <div style={{padding:'10px 14px',display:'flex',flexDirection:'column',gap:8}}>
               {players.sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p,i){
                 var col=pc(p,players.indexOf(p));
-                var hasContact=p.email||p.cell||(p.parent&&(p.parent.name||p.parent.cell));
-                var isConfDel=confDelPlayer===p.id;
-                return <div key={p.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',background:T.bg,borderRadius:10,border:'1px solid '+(isConfDel?T.red:T.border)}}>
-                  <div onClick={function(){setEditPlayer(p);setConfDelPlayer(null);}} style={{display:'flex',alignItems:'center',gap:10,flex:1,cursor:'pointer'}}>
-                    <div style={{width:38,height:38,borderRadius:10,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:21,fontWeight:900,color:col,flexShrink:0}}>{p.number}</div>
-                    <div style={{flex:1}}><div style={{fontSize:16,fontWeight:700,color:T.t1}}>{p.name||'#'+p.number}</div>
-                      {hasContact&&<div style={{fontSize:13,color:T.t3}}>{p.cell||p.email}</div>}
-                      {!hasContact&&<div style={{fontSize:13,color:T.t4,fontStyle:'italic'}}>No contact info</div>}
-                      {p.parent&&p.parent.name&&<div style={{fontSize:13,color:T.t4}}>Parent: {p.parent.name}</div>}
-                    </div>
-                    {!isConfDel&&<div style={{fontSize:14,color:T.t4}}>›</div>}
+                return <div key={p.id} onClick={function(){setPlayerMenu(p);}} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:T.bg,borderRadius:12,border:'1px solid '+T.border,cursor:'pointer'}}>
+                  <div style={{width:46,height:46,borderRadius:12,background:col+'18',border:'2px solid '+col+'44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:900,color:col,flexShrink:0}}>{p.number}</div>
+                  <div style={{flex:1,textAlign:'center'}}>
+                    <div style={{fontSize:19,fontWeight:800,color:T.t1}}>{p.name||'#'+p.number}</div>
                   </div>
-                  {isConfDel?(
-                    <div style={{display:'flex',gap:6,alignItems:'center'}}>
-                      <div style={{fontSize:13,color:T.red,fontWeight:700}}>Delete?</div>
-                      <button onClick={function(){handleDeletePlayer(p.id);}} style={{padding:'4px 10px',borderRadius:6,border:'none',background:T.red,color:'#fff',fontSize:14,fontWeight:700,cursor:'pointer'}}>Yes</button>
-                      <button onClick={function(){setConfDelPlayer(null);}} style={{padding:'4px 10px',borderRadius:6,border:'1px solid '+T.border,background:'transparent',color:T.t3,fontSize:14,cursor:'pointer'}}>No</button>
-                    </div>
-                  ):(
-                    <button onClick={function(e){e.stopPropagation();setConfDelPlayer(p.id);}} style={{padding:'4px 8px',borderRadius:6,border:'1px solid '+T.border,background:'transparent',color:T.red,fontSize:16,cursor:'pointer',lineHeight:1}} title="Delete player">✕</button>
-                  )}
+                  <div style={{fontSize:18,color:T.t4}}>›</div>
                 </div>;
               })}
               {players.length===0&&<div style={{textAlign:'center',padding:'20px',color:T.t4,fontSize:15}}>No players yet. Tap "+ Add Player" above to add one.</div>}
@@ -1669,7 +1859,9 @@ function SessionTypeScreen(props){
           </div>
         </div>
       )}
-      {editPlayer&&<PlayerContactModal player={editPlayer} onSave={function(updates){savePlayers(players.map(function(p){return p.id===editPlayer.id?Object.assign({},p,updates):p;}));setEditPlayer(null);}} onClose={function(){setEditPlayer(null);}}/>}
+      {editPlayer&&<PlayerContactModal player={editPlayer} onSave={function(updates){savePlayers(players.map(function(p){return p.id===editPlayer.id?Object.assign({},p,updates):p;}));setEditPlayer(null);}} onClose={function(){setEditPlayer(null);}} onDelete={function(){handleDeletePlayer(editPlayer.id);setEditPlayer(null);}}/>}
+      {playerMenu&&<PlayerQuickMenu player={playerMenu} col={pc(playerMenu,players.indexOf(playerMenu))} onStats={function(){setViewPlayerStats(playerMenu);setPlayerMenu(null);}} onEdit={function(){setEditPlayer(playerMenu);setPlayerMenu(null);}} onClose={function(){setPlayerMenu(null);}}/>}
+      {viewPlayerStats&&<PlayerStatsPage player={viewPlayerStats} allSessions={teamData.sessions||[]} col={pc(viewPlayerStats,players.indexOf(viewPlayerStats))} onClose={function(){setViewPlayerStats(null);}}/>}
       {editHead&&<CoachEditModal
         title="Head Coach"
         initial={coaches.head||emptyCoach()}
