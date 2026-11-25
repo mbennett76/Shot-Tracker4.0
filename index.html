@@ -3017,34 +3017,6 @@ function Tracker(props){
     return fbSaveTeam(teamMeta.id,data);  // returns a Promise<boolean>
   },[SK,onPersist,teamMeta.id]);
 
-  // Auto-draft backup — saves in-progress game every 30s so a failed save can be recovered
-  var DRAFT_KEY='bball-gamedraft-'+teamMeta.id;
-  var SNAP_KEY='bball-snap-'+teamMeta.id;
-  useEffect(function(){
-    if(!isGame) return;
-    function saveDraft(){
-      lsSet(DRAFT_KEY,{gs:gs,players:players,opponent:opponent,numPeriods:numPeriods,savedAt:new Date().toISOString()});
-      try{
-        var myS=calcMyScore(gs),oppS=calcOppScore(gs);
-        var lines=players.filter(function(p){return gs.pdata&&gs.pdata[p.id];}).map(function(p){
-          var pd=gs.pdata[p.id];
-          var pts=pd.qs.reduce(function(a,q){return a+calcPts(q.shots||[],q.ftShots||[]);},0);
-          return '#'+p.number+' '+p.name+': '+pts+' pts';
-        });
-        lsEmergencySnap(SNAP_KEY,null,opponent,myS,oppS,lines);
-      }catch(e){}
-      lsQuota().then(function(q){
-        if(q.pct>80){lsSet('bball-storage-warn',1);}
-        else{lsDel('bball-storage-warn');}
-      });
-    }
-    saveDraft();
-    var timer=setInterval(saveDraft,30000);
-    return function(){clearInterval(timer);};
-  },[gs]);
-  // Clear draft on successful save (called from handleSave after verify passes)
-  function clearGameDraft(){lsDel(DRAFT_KEY);lsDel(SNAP_KEY);lsDel('bball-storage-warn');}
-
   function calcMyScore(g){
     return players.reduce(function(t,p){
       var pd=g.pdata[p.id];
@@ -3394,7 +3366,6 @@ function Tracker(props){
         var preExportSess=ns.filter(function(s){return s.sessionType==='Game'&&s.label===label&&s.date===date;});
         if(preExportSess.length>0){try{generateReport(preExportSess,players,teamMeta);}catch(e){}}
       }
-      if(isGame) clearGameDraft();
       setSessions(ns);setPDrafts({});
       if(isGame) setGs(makeInitGS());
       setSaving(false);setView('history');
@@ -3474,26 +3445,6 @@ function Tracker(props){
         return (
           <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
 
-            {/* Draft recovery banner */}
-            {isGame&&(function(){
-              var draft=lsGet(DRAFT_KEY);
-              if(!draft||!draft.gs) return null;
-              var draftTime=draft.savedAt?new Date(draft.savedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}):'unknown';
-              return (
-                <div style={{background:'#fef3c7',border:'2px solid #f59e0b',borderRadius:12,padding:'12px 14px',display:'flex',flexDirection:'column',gap:8}}>
-                  <div style={{fontSize:16,fontWeight:900,color:'#92400e'}}>⚠️ Unsaved Game Draft Found</div>
-                  <div style={{fontSize:14,color:'#78350f'}}>A game in progress was auto-saved at {draftTime}. Did a previous save fail?</div>
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={function(){
-                      var d=lsGet(DRAFT_KEY);
-                      if(d&&d.gs){setGs(d.gs);}
-                      lsDel(DRAFT_KEY);
-                    }} style={{flex:2,padding:'10px',borderRadius:9,border:'none',background:'#f59e0b',color:'#fff',fontSize:15,fontWeight:800,cursor:'pointer'}}>↩ Restore Draft</button>
-                    <button onClick={function(){lsDel(DRAFT_KEY);setGs(function(g){return Object.assign({},g);});}} style={{flex:1,padding:'10px',borderRadius:9,border:'1px solid #f59e0b',background:'transparent',color:'#92400e',fontSize:14,fontWeight:700,cursor:'pointer'}}>Discard</button>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Player chips — tap to toggle floor/bench, tap selected to deselect */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'10px 12px'}}>
