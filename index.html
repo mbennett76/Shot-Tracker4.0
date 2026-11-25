@@ -3446,27 +3446,28 @@ function Tracker(props){
           <div style={{width:'100%',display:'flex',flexDirection:'column',gap:10}}>
 
 
-            {/* Player chips — tap to toggle floor/bench, tap selected to deselect */}
+            {/* Player chips — single row; bright = on floor, muted = off floor; tap chip to select, hold/double-tap to toggle floor */}
             <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'10px 12px'}}>
-              {/* Floor row */}
-              <div style={{fontSize:11,color:T.green,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:7}}>On Floor {sortedActive.length>0?'· '+sortedActive.length:''}</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:7,marginBottom:8,minHeight:46}}>
-                {sortedActive.map(function(p){
+              <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
+                {players.slice().sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p){
                   var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
                   var col=pc(p,pIdx);
+                  var isOn=isChipActive(p);
                   var isA=activePid===p.id;
                   var fouls=isGame&&gs.pdata[p.id]?gs.pdata[p.id].qs.reduce(function(t,q){return t+(q.foul||0);},0):0;
                   var dotPos=[{top:2,left:2},{top:2,right:2},{bottom:2,left:2},{bottom:2,right:2}];
                   return (
-                    <div key={p.id} onClick={function(){
-                      if(isA){setActivePid(null);}
-                      else if(activePid===p.id){setEditPid(p.id);setEditNum(p.number);setEditName(p.name||'');setConfDelP(false);}
-                      else{setActivePid(p.id);}
-                    }}
+                    <div key={p.id}
+                      onClick={function(){
+                        if(!isOn){togglePlayer(p);setActivePid(p.id);}
+                        else if(isA){setActivePid(null);}
+                        else{setActivePid(p.id);}
+                      }}
                       onDoubleClick={function(){togglePlayer(p);if(activePid===p.id) setActivePid(null);}}
                       style={{width:52,height:52,borderRadius:11,position:'relative',
-                        border:isA?'2.5px solid '+col:'1.5px solid '+col+'88',
-                        background:isA?col+'30':col+'18',color:isA?col:col,
+                        border:isA?'2.5px solid '+col:isOn?'1.5px solid '+col+'99':'1.5px solid '+col+'2a',
+                        background:isA?col+'30':isOn?col+'18':col+'06',
+                        color:isOn?col:col+'40',
                         fontSize:22,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
                         cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                         transition:'all 0.15s'}}>
@@ -3482,41 +3483,7 @@ function Tracker(props){
                     </div>
                   );
                 })}
-                {sortedActive.length===0&&<div style={{fontSize:14,color:T.t4,padding:'6px 0',letterSpacing:1,alignSelf:'center'}}>Tap bench players to add to floor</div>}
               </div>
-              {/* Bench row */}
-              {players.filter(function(p){return !isChipActive(p);}).length>0&&(
-                <div>
-                  <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:7}}>Bench</div>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:7}}>
-                    {players.filter(function(p){return !isChipActive(p);}).sort(function(a,b){return parseNum(a.number)-parseNum(b.number);}).map(function(p){
-                      var pIdx=players.findIndex(function(pl){return pl.id===p.id;});
-                      var col=pc(p,pIdx);
-                      var fouls=isGame&&gs.pdata[p.id]?gs.pdata[p.id].qs.reduce(function(t,q){return t+(q.foul||0);},0):0;
-                      var dotPos=[{top:2,left:2},{top:2,right:2},{bottom:2,left:2},{bottom:2,right:2}];
-                      return (
-                        <div key={p.id} onClick={function(){togglePlayer(p);setActivePid(p.id);}}
-                          style={{width:52,height:52,borderRadius:11,position:'relative',
-                            border:'1.5px solid '+col+'44',
-                            background:col+'08',color:col+'77',
-                            fontSize:22,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
-                            cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
-                            transition:'all 0.15s',opacity:0.6}}>
-                          {p.number}
-                          {isGame&&dotPos.slice(0,Math.min(fouls,4)).map(function(pos,i){
-                            return <div key={i} style={Object.assign({},{position:'absolute',width:8,height:8,borderRadius:'50%',background:'#111',boxShadow:'0 0 0 1.5px rgba(255,255,255,0.5)'},pos)}/>;
-                          })}
-                          {isGame&&fouls>=5&&(
-                            <svg style={{position:'absolute',inset:0,width:'100%',height:'100%',borderRadius:11,pointerEvents:'none'}} viewBox="0 0 52 52">
-                              <line x1="5" y1="5" x2="47" y2="47" stroke="#ef4444" strokeWidth="3" strokeLinecap="round"/>
-                            </svg>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
               {/* Add player button */}
               {players.length<12&&<div onClick={function(){setAddOpen(true);setNewNum('');setNewName('');}}
                 style={{width:52,height:52,borderRadius:11,border:'1.5px dashed '+T.border,background:'transparent',
