@@ -6,13 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Shot Tracker">
-<meta name="theme-color" content="#f5f5f7">
+<meta name="theme-color" content="#000000">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>ShotTracker 3.0</title>
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
-html,body,#root{height:100%;background:#f5f5f7;}
+html,body,#root{height:100%;background:#000000;}
 body{-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}
 ::-webkit-scrollbar{display:none;}
 input,button{font-family:inherit;}
@@ -105,11 +105,11 @@ function useIsLandscape(){
 
 // ── Theme ──────────────────────────────────────────────────────────────────────
 var T={
-  bg:'#f5f5f7',card:'#ffffff',border:'#e5e7eb',
-  t1:'#111827',t2:'#374151',t3:'#6b7280',t4:'#9ca3af',
-  accent:'#FF6B35',green:'#16a34a',red:'#dc2626',blue:'#2563eb',
-  greenL:'rgba(22,163,74,0.1)',redL:'rgba(220,38,38,0.1)',
-  shadow:'0 1px 3px rgba(0,0,0,0.08)',shadowMd:'0 4px 12px rgba(0,0,0,0.1)'
+  bg:'#000000',card:'#0d0d0d',border:'#1e1e1e',
+  t1:'#ffffff',t2:'#cccccc',t3:'#888888',t4:'#555555',
+  accent:'#6CACE4',green:'#34d399',red:'#f87171',blue:'#6CACE4',
+  greenL:'rgba(52,211,153,0.12)',redL:'rgba(248,113,113,0.12)',
+  shadow:'0 1px 3px rgba(0,0,0,0.4)',shadowMd:'0 4px 16px rgba(0,0,0,0.6)'
 };
 
 // ── Court constants ────────────────────────────────────────────────────────────
@@ -576,7 +576,7 @@ function PlayLogView(props){
       <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
         {items.map(function(item,i){
           if(item.type==='divider') return (
-            <div key={'d'+item.q} style={{padding:'10px 16px',background:item.label.indexOf('Half')>-1?'#fffbeb':'#f5f5f7',borderTop:'1px solid '+T.border,borderBottom:'1px solid '+T.border,textAlign:'center'}}>
+            <div key={'d'+item.q} style={{padding:'10px 16px',background:item.label.indexOf('Half')>-1?'#1a1200':'#111111',borderTop:'1px solid '+T.border,borderBottom:'1px solid '+T.border,textAlign:'center'}}>
               <div style={{fontSize:14,fontWeight:900,color:item.label.indexOf('Half')>-1?'#92400e':T.t2,letterSpacing:2,textTransform:'uppercase'}}>{item.label}</div>
             </div>
           );
@@ -1176,7 +1176,7 @@ function MultiStepTeamModal(props){
                   <input value={addPemail} onChange={function(e){setAddPemail(e.target.value);}} placeholder="Parent email" maxLength={60} style={iS}/>
                   <input value={addPcell} onChange={function(e){setAddPcell(e.target.value);}} placeholder="Parent cell" maxLength={20} style={iS}/>
                 </div>}
-                <button onClick={addPlayer} disabled={!addNum.trim()} style={{padding:'11px',borderRadius:10,border:'none',background:addNum.trim()?T.accent:'#e5e7eb',color:addNum.trim()?'#fff':T.t4,fontSize:16,fontWeight:700,cursor:addNum.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>+ Add to Roster</button>
+                <button onClick={addPlayer} disabled={!addNum.trim()} style={{padding:'11px',borderRadius:10,border:'none',background:addNum.trim()?T.accent:'#1e1e1e',color:addNum.trim()?'#000':T.t4,fontSize:16,fontWeight:700,cursor:addNum.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>+ Add to Roster</button>
               </div>
             </div>
           )}
@@ -1184,8 +1184,8 @@ function MultiStepTeamModal(props){
         <div style={{padding:'14px 20px 32px',borderTop:'1px solid '+T.border,display:'flex',gap:10,flexShrink:0}}>
           <button onClick={step===1?onCancel:function(){setStep(step-1);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer',fontWeight:600}}>{step===1?'Cancel':'← Back'}</button>
           {step<3
-            ?<button onClick={function(){if(nm.trim()) setStep(step+1);}} disabled={step===1&&!nm.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:nm.trim()?T.accent:'#e5e7eb',color:nm.trim()?'#fff':T.t4,fontSize:17,fontWeight:700,cursor:nm.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Next →</button>
-            :<button onClick={finish} disabled={!nm.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:nm.trim()?T.accent:'#e5e7eb',color:nm.trim()?'#fff':T.t4,fontSize:17,fontWeight:700,cursor:nm.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>🏀 Create Team</button>
+            ?<button onClick={function(){if(nm.trim()) setStep(step+1);}} disabled={step===1&&!nm.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:nm.trim()?T.accent:'#1e1e1e',color:nm.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:nm.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Next →</button>
+            :<button onClick={finish} disabled={!nm.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:nm.trim()?T.accent:'#1e1e1e',color:nm.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:nm.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>🏀 Create Team</button>
           }
         </div>
       </div>
@@ -1228,7 +1228,7 @@ function PlayerContactModal(props){
         <div style={{display:'flex',gap:10,marginTop:8}}>
           <button onClick={onClose} style={{flex:1,padding:'12px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer'}}>Cancel</button>
           {props.onDelete&&<button onClick={function(){if(props.onDelete) props.onDelete();}} style={{padding:'12px 14px',borderRadius:12,border:'1px solid #fecaca',background:'#fef2f2',color:T.red,fontSize:16,fontWeight:700,cursor:'pointer'}}>🗑</button>}
-          <button onClick={function(){if(num.trim()) onSave({number:num.trim(),name:name.trim(),email:email.trim(),cell:cell.trim(),parent:showPar?{name:pname.trim(),email:pemail.trim(),cell:pcell.trim()}:null});}} disabled={!num.trim()} style={{flex:2,padding:'12px 0',borderRadius:12,border:'none',background:num.trim()?T.accent:'#e5e7eb',color:num.trim()?'#fff':T.t4,fontSize:17,fontWeight:700,cursor:num.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
+          <button onClick={function(){if(num.trim()) onSave({number:num.trim(),name:name.trim(),email:email.trim(),cell:cell.trim(),parent:showPar?{name:pname.trim(),email:pemail.trim(),cell:pcell.trim()}:null});}} disabled={!num.trim()} style={{flex:2,padding:'12px 0',borderRadius:12,border:'none',background:num.trim()?T.accent:'#1e1e1e',color:num.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:num.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
         </div>
       </div>
     </div>
@@ -3723,7 +3723,7 @@ function Tracker(props){
 
             {/* Save Session */}
             <button onClick={function(){if(anyData) setSaving(true);}} disabled={!anyData}
-              style={{width:'100%',padding:'16px 0',borderRadius:14,border:'none',background:anyData?T.accent:'#e5e7eb',color:anyData?'#fff':T.t4,fontSize:17,fontWeight:900,letterSpacing:4,cursor:anyData?'pointer':'default',textTransform:'uppercase',boxShadow:anyData?'0 4px 20px rgba(255,107,53,0.3)':'none',transition:'all 0.2s'}}>💾 Save Session</button>
+              style={{width:'100%',padding:'16px 0',borderRadius:14,border:'none',background:anyData?T.accent:'#1e1e1e',color:anyData?'#000':T.t4,fontSize:17,fontWeight:900,letterSpacing:4,cursor:anyData?'pointer':'default',textTransform:'uppercase',boxShadow:anyData?'0 4px 20px rgba(108,172,228,0.35)':'none',transition:'all 0.2s'}}>💾 Save Session</button>
 
           </div>
         );
@@ -3831,7 +3831,7 @@ function Tracker(props){
             </div>
             <div style={{display:'flex',gap:10}}>
               <button onClick={function(){setAddOpen(false);setNewNum('');setNewName('');}} style={{flex:1,padding:'12px 0',borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer'}}>Cancel</button>
-              <button onClick={handleAddPlayer} disabled={!newNum.trim()} style={{flex:2,padding:'12px 0',borderRadius:10,border:'none',background:newNum.trim()?T.accent:'#e5e7eb',color:newNum.trim()?'#fff':T.t4,fontSize:17,fontWeight:700,cursor:newNum.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Add</button>
+              <button onClick={handleAddPlayer} disabled={!newNum.trim()} style={{flex:2,padding:'12px 0',borderRadius:10,border:'none',background:newNum.trim()?T.accent:'#1e1e1e',color:newNum.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:newNum.trim()?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>Add</button>
             </div>
           </div>
         </div>
@@ -3956,7 +3956,7 @@ function generateReport(sessions,players,teamMeta){
 
   var playerRows=rows.map(function(r){
     var pmStr=r.pm>0?'+'+r.pm:(r.pm===0?'0':String(r.pm));
-    var pmColor=r.pm>0?'#16a34a':r.pm<0?'#dc2626':'#374151';
+    var pmColor=r.pm>0?T.green:r.pm<0?T.red:T.t2;
     var dispName=(r.name?r.name+', ':'')+'#'+r.num;
     return '<tr>'+
       '<td style="text-align:left;padding:5px 8px;font-size:12px;">'+dispName+'</td>'+
@@ -3998,7 +3998,7 @@ function generateReport(sessions,players,teamMeta){
     var pts=fg2m*2+fg3m*3+ftm;
     var pm=sess.plusMinus!=null?sess.plusMinus:0;
     var pmStr=pm>0?'+'+pm:(pm===0?'0':String(pm));
-    var pmColor=pm>0?'#16a34a':pm<0?'#dc2626':'#374151';
+    var pmColor=pm>0?T.green:pm<0?T.red:T.t2;
     var dispName=(p.name||'')+(p.name?', ':'')+'#'+p.number;
     return '<div class="page player-page">'+
       '<div class="player-header">'+
@@ -4429,7 +4429,7 @@ function TeamSelector(props){
                 <input value={en} onChange={function(e){setEn(e.target.value);}} maxLength={30} style={{width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:12,padding:'14px',color:T.t1,fontSize:21,fontWeight:700,outline:'none',textAlign:'center'}}/>
                 <div style={{display:'flex',gap:10}}>
                   <button onClick={function(){setEt(null);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer'}}>Cancel</button>
-                  <button onClick={function(){if(en.trim()){onEdit(et.id,en.trim(),el);setEt(null);}}} disabled={!en.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:en.trim()?T.accent:'#e5e7eb',color:en.trim()?'#fff':T.t4,fontSize:17,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
+                  <button onClick={function(){if(en.trim()){onEdit(et.id,en.trim(),el);setEt(null);}}} disabled={!en.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:en.trim()?T.accent:'#1e1e1e',color:en.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
                 </div>
                 <button onClick={function(){setCd(true);}} style={{padding:'11px 0',borderRadius:12,border:'1px solid #fecaca',background:'#fef2f2',color:T.red,fontSize:14,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',fontWeight:700}}>Delete "{et.name}"</button>
               </React.Fragment>
