@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Shot Tracker">
 <meta name="theme-color" content="#000000">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@1,800&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>ShotTracker 3.0</title>
@@ -418,7 +421,6 @@ function ScoreBoard(props){
           <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
         </button>
       </div>
-      <div style={{textAlign:'center',paddingBottom:5,fontSize:12,color:T.t4,letterSpacing:1}}>tap score to edit · ◀▶ to change quarter</div>
     </div>
   );
 }
@@ -4293,9 +4295,16 @@ function TeamSelector(props){
 
       {/* Title */}
       <div style={{textAlign:'center',padding:'18px 20px 0'}}>
-        <div style={{fontSize:52,marginBottom:6,lineHeight:1}}>🏀</div>
-        <h1 style={{margin:'0 0 4px',fontSize:26,letterSpacing:4,color:T.t1,textTransform:'uppercase',fontWeight:900}}>Shot Tracker</h1>
-        <div style={{fontSize:13,color:T.t4,letterSpacing:3,textTransform:'uppercase',fontWeight:700,marginBottom:4}}>Practice & Game</div>
+        <div style={{display:'inline-block',position:'relative',paddingBottom:10}}>
+          <div style={{fontFamily:"'Barlow Condensed',Impact,sans-serif",fontStyle:'italic',fontWeight:800,fontSize:48,lineHeight:1,letterSpacing:2,userSelect:'none'}}>
+            <span style={{color:'#ffffff',textShadow:'2px 2px 0 rgba(0,0,0,0.5)'}}>SHOT </span>
+            <span style={{color:'#6CACE4',textShadow:'2px 2px 0 rgba(0,0,0,0.5)'}}>TRACKER</span>
+          </div>
+          {/* Swoosh underline */}
+          <svg viewBox="0 0 320 14" style={{width:'100%',display:'block',marginTop:2}} preserveAspectRatio="none">
+            <path d="M10,10 Q160,2 310,8" stroke="#6CACE4" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
+          </svg>
+        </div>
       </div>
 
       {/* Import feedback */}
