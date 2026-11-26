@@ -4313,10 +4313,22 @@ function TeamSelector(props){
       {/* Top toolbar: import left, export right */}
       <div style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'52px 16px 0',position:'relative'}}>
         <button onClick={function(){if(fileRef.current) fileRef.current.click();}} title="Import Backup"
-          style={{width:44,height:44,borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.blue,fontSize:22,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadow,touchAction:'manipulation'}}>↓</button>
+          style={{width:44,height:44,borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.blue,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadow,touchAction:'manipulation'}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
         <input ref={fileRef} type="file" accept=".json" onChange={handleImportFile} style={{display:'none'}}/>
         <button onClick={handleExport} title="Export Backup"
-          style={{width:44,height:44,borderRadius:12,border:'1px solid '+T.border,background:T.card,color:'#7c3aed',fontSize:22,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadow,touchAction:'manipulation'}}>↑</button>
+          style={{width:44,height:44,borderRadius:12,border:'1px solid '+T.border,background:T.card,color:'#7c3aed',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:T.shadow,touchAction:'manipulation'}}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
       </div>
 
       {/* Title */}
