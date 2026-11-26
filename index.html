@@ -407,18 +407,18 @@ function ScoreBoard(props){
     <div style={{background:T.card,borderRadius:14,border:'1px solid '+T.border,boxShadow:T.shadow,overflow:'hidden'}}>
       <div style={{display:'flex',alignItems:'center',padding:'10px 16px 4px'}}>
         <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'left',minWidth:0}}>
-          <div style={{fontSize:15,color:T.t2,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:700}}>{myName}</div>
-          <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{myScore}</div>
+          <div style={{fontSize:17,color:T.t1,letterSpacing:2,textTransform:'uppercase',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:900}}>{myName}</div>
+          <div style={{fontSize:60,fontWeight:900,color:T.t1,lineHeight:1}}>{myScore}</div>
         </button>
         {/* ◀ Quarter ▶ */}
-        <div style={{display:'flex',alignItems:'center',gap:2,paddingTop:10,flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:2,paddingTop:14,flexShrink:0}}>
           <button onClick={retreatQ} style={Object.assign({},btnBase,{fontSize:19,color:T.t4})}>◀</button>
           <div style={{fontSize:23,fontWeight:900,color:'#d97706',minWidth:30,textAlign:'center',lineHeight:1}}>{qLabel(quarter)}</div>
           <button onClick={advanceQ} style={Object.assign({},btnBase,{fontSize:19,color:T.t4})}>▶</button>
         </div>
         <button onClick={onEditScore} style={{flex:1,background:'transparent',border:'none',padding:0,cursor:'pointer',textAlign:'right',minWidth:0}}>
-          <div style={{fontSize:15,color:T.t2,letterSpacing:2,textTransform:'uppercase',marginBottom:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:700}}>{oppName||'Opponent'}</div>
-          <div style={{fontSize:46,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
+          <div style={{fontSize:17,color:T.t1,letterSpacing:2,textTransform:'uppercase',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontWeight:900}}>{oppName||'Opponent'}</div>
+          <div style={{fontSize:60,fontWeight:900,color:T.t1,lineHeight:1}}>{oppScore}</div>
         </button>
       </div>
     </div>
@@ -1246,6 +1246,7 @@ function EventSetupModal(props){
   var arrState=useState(ev.arrivalOffset||30);var arr=arrState[0],setArr=arrState[1];
   var venueState=useState(ev.venue||'');var venue=venueState[0],setVenue=venueState[1];
   var oppState=useState(ev.opponent||'');var opp=oppState[0],setOpp=oppState[1];
+  var oppNickState=useState(ev.oppNick||'');var oppNick=oppNickState[0],setOppNick=oppNickState[1];
   var haState=useState(ev.homeAway||'Home');var ha=haState[0],setHa=haState[1];
   var npState=useState(ev.numPeriods||4);var np=npState[0],setNp=npState[1];
   var toH1State=useState(ev.toH1||1);var toH1=toH1State[0],setToH1=toH1State[1];
@@ -1254,7 +1255,7 @@ function EventSetupModal(props){
   var isGame=type==='Game';
   var iS={width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:9,padding:'10px 12px',color:T.t1,fontSize:17,outline:'none'};
   var lS={fontSize:12,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:5,display:'block',marginTop:12};
-  function buildEvent(){return Object.assign({},ev,{type:type,date:date,time:time,arrivalOffset:arr,venue:venue.trim(),opponent:opp.trim()||'Opponent',homeAway:ha,numPeriods:np,toH1:parseInt(toH1)||1,toH2:parseInt(toH2)||2,notes:notes.trim(),createdAt:ev.createdAt||new Date().toISOString()});}
+  function buildEvent(){return Object.assign({},ev,{type:type,date:date,time:time,arrivalOffset:arr,venue:venue.trim(),opponent:opp.trim()||'Opponent',oppNick:oppNick.trim(),homeAway:ha,numPeriods:np,toH1:parseInt(toH1)||1,toH2:parseInt(toH2)||2,notes:notes.trim(),createdAt:ev.createdAt||new Date().toISOString()});}
   var arrivalDisplay=time?calcArrival(time,arr):'—';
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:999}}>
@@ -1267,6 +1268,9 @@ function EventSetupModal(props){
           {isGame&&<React.Fragment>
             <span style={lS}>Opponent *</span>
             <input value={opp} onChange={function(e){setOpp(e.target.value);}} placeholder="e.g. Raptors, Eagles…" maxLength={30} autoFocus style={Object.assign({},iS,{fontSize:21,fontWeight:700,textAlign:'center',padding:'14px'})}/>
+            <span style={lS}>Scoreboard Short Name</span>
+            <input value={oppNick} onChange={function(e){setOppNick(e.target.value);}} placeholder="e.g. Eagles, City, West…" maxLength={12} style={Object.assign({},iS,{textAlign:'center'})}/>
+            <div style={{fontSize:12,color:T.t4,textAlign:'center',marginTop:3,marginBottom:4,letterSpacing:0.5}}>Shown on scoreboard · leave blank to use opponent name</div>
             <span style={lS}>Home or Away</span>
             <div style={{display:'flex',background:T.bg,border:'1px solid '+T.border,borderRadius:10,overflow:'hidden'}}>
               <button onClick={function(){setHa('Home');}} style={{flex:1,padding:'11px',border:'none',background:ha==='Home'?T.green:'transparent',color:ha==='Home'?'#fff':T.t3,fontSize:16,fontWeight:700,cursor:'pointer',transition:'all 0.15s'}}>🏠 Home</button>
@@ -1450,6 +1454,11 @@ function TeamHistoryPage(props){
           <div style={{flex:1}}/>
         </div>
         <div style={{textAlign:'center'}}>
+          {teamMeta.logo&&(
+            <div style={{width:60,height:60,borderRadius:16,background:T.bg,border:'2px solid '+T.border,display:'flex',alignItems:'center',justifyContent:'center',fontSize:30,margin:'0 auto 8px',overflow:'hidden'}}>
+              {teamMeta.logo.startsWith('data:')?<img src={teamMeta.logo} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:teamMeta.logo}
+            </div>
+          )}
           <div style={{fontSize:26,fontWeight:900,color:T.t1,letterSpacing:1}}>{teamMeta.name}</div>
           {games.length>0&&(
             <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:14,marginTop:8}}>
@@ -1763,7 +1772,7 @@ function SessionTypeScreen(props){
   }
   function handleEventStart(ev){
     setEvSetupType(null);setEditEv(null);setViewEv(null);
-    onStartSession(ev.type,{opponent:ev.opponent||'Opponent',numPeriods:ev.numPeriods||4,toH1:ev.toH1||1,toH2:ev.toH2||2});
+    onStartSession(ev.type,{opponent:ev.opponent||'Opponent',oppNick:ev.oppNick||'',numPeriods:ev.numPeriods||4,toH1:ev.toH1||1,toH2:ev.toH2||2});
   }
   function handleDeleteEvent(id){saveSchedule(schedule.filter(function(e){return e.id!==id;}));setViewEv(null);}
 
@@ -2917,7 +2926,7 @@ function TimeoutStrip(props){
 
 // ── Main Tracker ───────────────────────────────────────────────────────────────
 function Tracker(props){
-  var teamMeta=props.teamMeta,sessionType=props.sessionType,opponent=props.opponent;
+  var teamMeta=props.teamMeta,sessionType=props.sessionType,opponent=props.opponent,oppNick=props.oppNick||'';
   var initPlayers=props.players,initSessions=props.sessions;
   var numPeriods=props.numPeriods||4;
   var toH1Cfg=props.toH1||1;
@@ -3436,10 +3445,9 @@ function Tracker(props){
     <div style={{minHeight:'100vh',background:T.bg,display:'flex',flexDirection:'column',alignItems:'center',padding:'12px 12px 40px',maxWidth:520,margin:'0 auto',width:'100%'}}>
 
       {/* Header */}
-      <div style={{textAlign:'center',paddingBottom:10,width:'100%',position:'relative'}}>
-        <button onClick={onBack} style={{position:'absolute',left:0,top:4,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:15,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>← Back</button>
-        <div style={{fontSize:12,letterSpacing:4,color:T.accent,textTransform:'uppercase',fontWeight:700,marginBottom:1}}>🏀 {teamMeta.name}</div>
-        <div style={{fontSize:20,fontWeight:900,color:T.t1,letterSpacing:3,textTransform:'uppercase',lineHeight:1}}>{isGame?'🏆 Game':'🏋️ Practice'}{isGame&&opponent?<span style={{fontSize:15,color:T.t3,fontWeight:400,marginLeft:8}}>vs {opponent}</span>:null}</div>
+      <div style={{paddingBottom:6,width:'100%',position:'relative',display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <button onClick={onBack} style={{position:'absolute',left:0,background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:15,fontWeight:700,letterSpacing:1,textTransform:'uppercase'}}>← Back</button>
+        <div style={{fontSize:13,letterSpacing:3,color:T.t4,textTransform:'uppercase',fontWeight:700}}>{isGame?'Game':'Practice'}</div>
       </div>
 
       {/* TODAY VIEW */}
@@ -3525,11 +3533,11 @@ function Tracker(props){
                   });
                 }
               }
-              return <TimeoutStrip mySlots={mySlots} oppSlots={oppSlots} setMySlots={setMySlots} setOppSlots={setOppSlots} myName={teamMeta.name} oppName={opponent} onLog={handleToLog}/>;
+              return <TimeoutStrip mySlots={mySlots} oppSlots={oppSlots} setMySlots={setMySlots} setOppSlots={setOppSlots} myName={teamMeta.nickname||teamMeta.name} oppName={oppNick||opponent} onLog={handleToLog}/>;
             })()}
 
             {/* Scoreboard */}
-            {isGame&&<ScoreBoard myName={teamMeta.name} oppName={opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){
+            {isGame&&<ScoreBoard myName={teamMeta.nickname||teamMeta.name} oppName={oppNick||opponent} myScore={myScore} oppScore={oppScore} quarter={gs.q} numPeriods={numPeriods} onSetQ={function(q){setGs(function(g){
               // If advancing into OT (q > current slot count), extend all pdata.qs and oppQs by one slot
               var currentSlots=(g.oppQs||[]).length;
               if(q>currentSlots){
@@ -4196,6 +4204,7 @@ function TeamSelector(props){
   var crState=useState(false);var cr=crState[0],setCr=crState[1];
   var etState=useState(null);var et=etState[0],setEt=etState[1];
   var enState=useState('');var en=enState[0],setEn=enState[1];
+  var enkState=useState('');var enk=enkState[0],setEnk=enkState[1];
   var elState=useState('🏀');var el=elState[0],setEl=elState[1];
   var cdState=useState(false);var cd=cdState[0],setCd=cdState[1];
   var msgState=useState(null);var importMsg=msgState[0],setImportMsg=msgState[1];
@@ -4312,7 +4321,6 @@ function TeamSelector(props){
 
       {/* Team list */}
       <div style={{width:'100%',padding:'16px 14px 0',display:'flex',flexDirection:'column',gap:10}}>
-        <StorageBar/>
         {teams.length===0&&!cr&&(
           <div style={{textAlign:'center',padding:'60px 20px',display:'flex',flexDirection:'column',alignItems:'center',gap:16}}>
             <div style={{fontSize:40}}>📋</div>
@@ -4332,7 +4340,7 @@ function TeamSelector(props){
                 <div style={{flex:1,minWidth:0,cursor:'pointer',textAlign:'center'}} onClick={function(){onSelect(t);}}>
                   <div style={{fontSize:20,fontWeight:900,color:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</div>
                 </div>
-                <button onClick={function(){setEt(t);setEn(t.name);setEl(t.logo||'🏀');setCd(false);}}
+                <button onClick={function(){setEt(t);setEn(t.name);setEnk(t.nickname||'');setEl(t.logo||'🏀');setCd(false);}}
                   style={{width:36,height:36,borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t3,fontSize:17,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,touchAction:'manipulation'}}>✏️</button>
               </div>
             </div>
@@ -4375,9 +4383,14 @@ function TeamSelector(props){
                   </div>
                 </div>
                 <input value={en} onChange={function(e){setEn(e.target.value);}} maxLength={30} style={{width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:12,padding:'14px',color:T.t1,fontSize:21,fontWeight:700,outline:'none',textAlign:'center'}}/>
+                <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                  <div style={{fontSize:12,color:T.t4,fontWeight:700,letterSpacing:2,textTransform:'uppercase',textAlign:'center'}}>Scoreboard Nickname</div>
+                  <input value={enk} onChange={function(e){setEnk(e.target.value);}} maxLength={12} placeholder={'e.g. Falcons, Steel…'} style={{width:'100%',boxSizing:'border-box',background:T.bg,border:'1px solid '+T.border,borderRadius:12,padding:'10px 14px',color:T.t1,fontSize:16,fontWeight:600,outline:'none',textAlign:'center'}}/>
+                  <div style={{fontSize:12,color:T.t4,textAlign:'center',letterSpacing:0.5}}>Shown on scoreboard · leave blank to use team name</div>
+                </div>
                 <div style={{display:'flex',gap:10}}>
                   <button onClick={function(){setEt(null);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer'}}>Cancel</button>
-                  <button onClick={function(){if(en.trim()){onEdit(et.id,en.trim(),el);setEt(null);}}} disabled={!en.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:en.trim()?T.accent:'#1e1e1e',color:en.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
+                  <button onClick={function(){if(en.trim()){onEdit(et.id,en.trim(),el,enk.trim());setEt(null);}}} disabled={!en.trim()} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:en.trim()?T.accent:'#1e1e1e',color:en.trim()?'#000':T.t4,fontSize:17,fontWeight:700,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>Save</button>
                 </div>
                 <button onClick={function(){setCd(true);}} style={{padding:'11px 0',borderRadius:12,border:'1px solid #fecaca',background:'#fef2f2',color:T.red,fontSize:14,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',fontWeight:700}}>Delete "{et.name}"</button>
               </React.Fragment>
@@ -4472,6 +4485,8 @@ function App(){
   var sessionType=sessionTypeState[0],setSessionType=sessionTypeState[1];
   var opponentState=useState(null);
   var opponent=opponentState[0],setOpponent=opponentState[1];
+  var oppNickState=useState('');
+  var oppNick=oppNickState[0],setOppNick=oppNickState[1];
   var numPeriodsState=useState(4);
   var numPeriods=numPeriodsState[0],setNumPeriods=numPeriodsState[1];
   var toH1PropState=useState(1);
@@ -4661,13 +4676,13 @@ function App(){
     saveTeams(teams.concat([t]));
     setActiveTeam(t);
   }
-  function onEdit(id,name,logo){saveTeams(teams.map(function(t){return t.id===id?Object.assign({},t,{name:name,logo:logo}):t;}));if(activeTeam&&activeTeam.id===id) setActiveTeam(function(a){return Object.assign({},a,{name:name,logo:logo});});}
+  function onEdit(id,name,logo,nickname){var upd={name:name,logo:logo,nickname:nickname||''};saveTeams(teams.map(function(t){return t.id===id?Object.assign({},t,upd):t;}));if(activeTeam&&activeTeam.id===id) setActiveTeam(function(a){return Object.assign({},a,upd);});}
   function onDelete(id){
     saveTeams(teams.filter(function(t){return t.id!==id;}));
     lsDel(TK(id));
     fbDel(fbTeamPath(id));
     setTeamDataCache(function(c){var n=Object.assign({},c);delete n[id];return n;});
-    if(activeTeam&&activeTeam.id===id){setActiveTeam(null);setSessionType(null);setOpponent(null);}
+    if(activeTeam&&activeTeam.id===id){setActiveTeam(null);setSessionType(null);setOpponent(null);setOppNick('');}
   }
   function onImport(nt){setTeams(nt);}
   function onMeta(id,u){
@@ -4678,7 +4693,7 @@ function App(){
       return n;
     });
   }
-  function handleBack(){if(sessionType!==null){setSessionType(null);setOpponent(null);}else{setActiveTeam(null);}}
+  function handleBack(){if(sessionType!==null){setSessionType(null);setOpponent(null);setOppNick('');}else{setActiveTeam(null);}}
 
   function handleUpdateTeamData(updates){
     if(!activeTeam) return;
@@ -4694,7 +4709,7 @@ function App(){
 
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
-  if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
+  if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);setOppNick('');}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
 
   if(!sessionType){
     var td=getTeamFullData(activeTeam.id);
@@ -4704,6 +4719,7 @@ function App(){
       onStartSession={function(type,opts){
         setSessionType(type);
         setOpponent(type==='Practice'?'':((opts&&opts.opponent)||'Opponent'));
+        setOppNick(type==='Practice'?'':((opts&&opts.oppNick)||''));
         setNumPeriods((opts&&opts.numPeriods)||4);
         setToH1Prop((opts&&opts.toH1)||1);
         setToH2Prop((opts&&opts.toH2)||2);
@@ -4721,6 +4737,7 @@ function App(){
       players={teamData.players||[]}
       sessionType={sessionType}
       opponent={opponent||''}
+      oppNick={oppNick||''}
       numPeriods={numPeriods}
       toH1={toH1Prop}
       toH2={toH2Prop}
