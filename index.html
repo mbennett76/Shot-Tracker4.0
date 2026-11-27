@@ -36,6 +36,8 @@ input::placeholder{color:#c7c7cc;}
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>window.onerror=function(msg,src,line,col,err){document.getElementById('root').innerHTML='<div style="padding:24px;color:red;font-size:14px;font-family:monospace;word-break:break-all"><h2>APP ERROR - send this to developer</h2><p>'+msg+'</p><p>Line:'+line+'</p><p>'+(err?err.stack:'')+'</p></div>';return true;};</script>
 <script type="text/babel">
 /* @jsxRuntime classic */
@@ -4768,9 +4770,80 @@ function ReportViewer(props){
     };
   },[]);
 
-  function handlePrint(){
-    // window.print() called directly from tap — works on iOS PWA
-    window.print();
+  var generatingState=useState(false);
+  var generating=generatingState[0],setGenerating=generatingState[1];
+
+  function handleShare(){
+    if(generating) return;
+    setGenerating(true);
+
+    // Render the visible report div to a PDF using html2canvas + jsPDF,
+    // then share the real .pdf file via the iOS native share sheet.
+    var scrollEl=document.getElementById('rpt-scroll');
+    if(!scrollEl){setGenerating(false);return;}
+
+    // Temporarily expand the scroll container so html2canvas captures everything
+    var origMaxH=scrollEl.style.maxHeight;
+    var origOverflow=scrollEl.style.overflow;
+    var origHeight=scrollEl.style.height;
+    scrollEl.style.maxHeight='none';
+    scrollEl.style.overflow='visible';
+    scrollEl.style.height='auto';
+
+    window.html2canvas(scrollEl,{
+      scale:2,
+      useCORS:true,
+      allowTaint:true,
+      backgroundColor:'#ffffff',
+      scrollX:0,
+      scrollY:0,
+      windowWidth:scrollEl.scrollWidth,
+      windowHeight:scrollEl.scrollHeight
+    }).then(function(canvas){
+      // Restore scroll container
+      scrollEl.style.maxHeight=origMaxH;
+      scrollEl.style.overflow=origOverflow;
+      scrollEl.style.height=origHeight;
+
+      var imgData=canvas.toDataURL('image/jpeg',0.92);
+      var jsPDF=window.jspdf.jsPDF;
+      var pageW=210; // A4 mm
+      var pageH=297;
+      var imgW=pageW;
+      var imgH=(canvas.height/canvas.width)*imgW;
+      var pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+
+      var yPos=0;
+      while(yPos<imgH){
+        if(yPos>0) pdf.addPage();
+        pdf.addImage(imgData,'JPEG',0,-yPos,imgW,imgH,undefined,'FAST');
+        yPos+=pageH;
+      }
+
+      var pdfBlob=pdf.output('blob');
+      var pdfFile=new File([pdfBlob],'game-report.pdf',{type:'application/pdf'});
+
+      setGenerating(false);
+
+      if(navigator.canShare&&navigator.canShare({files:[pdfFile]})){
+        navigator.share({files:[pdfFile],title:'Game Report'}).catch(function(){});
+      } else {
+        // Desktop fallback: download the PDF
+        var url=URL.createObjectURL(pdfBlob);
+        var a=document.createElement('a');
+        a.href=url;
+        a.download='game-report.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function(){URL.revokeObjectURL(url);},10000);
+      }
+    }).catch(function(){
+      scrollEl.style.maxHeight=origMaxH;
+      scrollEl.style.overflow=origOverflow;
+      scrollEl.style.height=origHeight;
+      setGenerating(false);
+    });
   }
 
   function handleClose(){
@@ -4787,9 +4860,9 @@ function ReportViewer(props){
         </button>
         <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
         <button
-          onClick={handlePrint}
-          style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44,WebkitAppearance:'none'}}>
-          Print / PDF
+          onClick={handleShare}
+          style={{background:generating?T.border:T.accent,border:'none',color:'#000',cursor:generating?'default':'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44,WebkitAppearance:'none'}}>
+          {generating?'Building…':'Share / PDF'}
         </button>
       </div>
       <div
