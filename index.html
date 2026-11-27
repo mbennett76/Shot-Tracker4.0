@@ -742,14 +742,17 @@ function SCard(props){
 function HistoryView(props){
   var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions,onDelSession=props.onDelSession;
   var defaultSession=props.defaultSession||null;
-  var hvState=useState(defaultSession?'session':'overview');
+  var defaultGameKey=props.defaultGameKey||null;
+  var onBackFromGame=props.onBackFromGame||null;
+  var initHv=defaultGameKey?'game':(defaultSession?'session':'overview');
+  var hvState=useState(initHv);
   var hv=hvState[0],setHv=hvState[1];
   var hpState=useState(null);
   var hpData=hpState[0],setHpData=hpState[1];
   var viewingState=useState(defaultSession);
   var viewing=viewingState[0],setViewing=viewingState[1];
 
-  var viewingGameState=useState(null);
+  var viewingGameState=useState(defaultGameKey||null);
   var viewingGame=viewingGameState[0],setViewingGame=viewingGameState[1];
   var viewingPlayerGameState=useState(null);
   var viewingPlayerGame=viewingPlayerGameState[0],setViewingPlayerGame=viewingPlayerGameState[1];
@@ -938,7 +941,7 @@ function HistoryView(props){
     }).filter(Boolean);
     return (
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
-        <button onClick={function(){setHv('overview');setViewingGame(null);}} style={{background:'none',border:'none',color:T.green,cursor:'pointer',fontSize:14,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← Season Overview</button>
+        <button onClick={function(){if(onBackFromGame){onBackFromGame();}else{setHv('overview');setViewingGame(null);}}} style={{background:'none',border:'none',color:T.green,cursor:'pointer',fontSize:14,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← {onBackFromGame?'History':'Season Overview'}</button>
         <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'16px'}}>
           <div style={{textAlign:'center',marginBottom:4}}>
             <div style={{fontSize:12,color:T.t4,letterSpacing:2,textTransform:'uppercase',marginBottom:6}}>{fmtDate(gRef.date)}{gRef.label?' · '+gRef.label:''}</div>
@@ -1739,33 +1742,18 @@ function TeamHistoryPage(props){
   var selectedGame=selectedGameState[0],setSelectedGame=selectedGameState[1];
 
   if(viewGame==='game'&&selectedGame){
-    var gss=selectedGame.sessions;
-    var score=selectedGame.gameScore;
-    var isW=score&&score.my>score.opp;
-    var isL=score&&score.my<score.opp;
-    var accentC=isW?T.green:isL?T.red:T.t3;
+    var gKey2=selectedGame.key;
     return (
       <div style={{position:'fixed',inset:0,background:T.bg,zIndex:999,overflowY:'auto',maxWidth:520,margin:'0 auto'}}>
-        <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 14px',display:'flex',alignItems:'center',gap:12,position:'sticky',top:0,zIndex:10,boxShadow:T.shadow}}>
-          <button onClick={function(){setViewGame(null);setSelectedGame(null);}} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← History</button>
-          <div style={{flex:1,textAlign:'center'}}>
-            <div style={{fontSize:19,fontWeight:900,color:T.t1}}>vs {selectedGame.opponent||'Opponent'}</div>
-            <div style={{fontSize:14,color:T.t3,marginTop:2}}>{fmtDate(selectedGame.date)}</div>
-          </div>
-          {score&&<div style={{fontSize:22,fontWeight:900,color:accentC,textAlign:'right',flexShrink:0}}>{score.my}–{score.opp}<div style={{fontSize:12,fontWeight:800,color:accentC,letterSpacing:1,textTransform:'uppercase'}}>{isW?'WIN':isL?'LOSS':'TIE'}</div></div>}
-        </div>
-        <div style={{padding:'14px 14px',display:'flex',flexDirection:'column',gap:12}}>
+        <div style={{padding:'52px 14px 14px',display:'flex',flexDirection:'column',gap:12}}>
           <HistoryView
             teamMeta={teamMeta}
             players={players}
-            sessions={gss}
-            defaultSession={gss[0]||null}
+            sessions={sessions}
+            defaultGameKey={gKey2}
             onDelSession={onDelSession}
+            onBackFromGame={function(){setViewGame(null);setSelectedGame(null);}}
           />
-          <button onClick={function(){generateReport(gss,players,teamMeta);}}
-            style={{width:'100%',padding:'15px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:17,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)',touchAction:'manipulation'}}>
-            📄 Export Game Report
-          </button>
         </div>
       </div>
     );
