@@ -4729,37 +4729,61 @@ function StorageBar(){
 }
 
 // ── Report Viewer ─────────────────────────────────────────────────────────────
+// Inject a print-only style into the main document once
+function ensurePrintStyle(){
+  if(document.getElementById('rpt-print-style')) return;
+  var s=document.createElement('style');
+  s.id='rpt-print-style';
+  s.textContent='@media print{#root{display:none!important;}#rpt-print-frame{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;border:none!important;z-index:99999!important;}}';
+  document.head.appendChild(s);
+}
+
 function ReportViewer(props){
   var html=props.html,onClose=props.onClose;
+
+  // Inject print style on first render
+  ensurePrintStyle();
+
+  // Store html in a hidden iframe so we can call print() on its window
+  // The iframe sits behind the React-rendered overlay so it doesn't block touches
+  useEffect(function(){
+    var fr=document.getElementById('rpt-print-frame');
+    if(!fr){
+      fr=document.createElement('iframe');
+      fr.id='rpt-print-frame';
+      fr.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:1999;pointer-events:none;';
+      document.body.appendChild(fr);
+    }
+    // Write the report HTML into the hidden iframe
+    fr.srcdoc=html;
+    return function(){
+      var old=document.getElementById('rpt-print-frame');
+      if(old) old.parentNode.removeChild(old);
+    };
+  },[]);
+
   function handlePrint(){
-    // Open report in a new window and print from there
-    // Using blob URL avoids the PWA popup blocker (blob: is same-origin)
-    try{
-      var blob=new Blob([html],{type:'text/html'});
-      var url=URL.createObjectURL(blob);
-      var w=window.open(url,'_blank');
-      if(w){
-        w.onload=function(){
-          setTimeout(function(){w.print();URL.revokeObjectURL(url);},300);
-        };
-      } else {
-        // PWA blocked popup — fall back to printing current page content
-        var orig=document.body.innerHTML;
-        document.body.innerHTML='<div id="rpt-print">'+html+'</div>';
-        window.print();
-        document.body.innerHTML=orig;
-        window.location.reload();
-      }
-    }catch(e){}
+    var fr=document.getElementById('rpt-print-frame');
+    if(fr&&fr.contentWindow){
+      fr.contentWindow.print();
+    }
   }
+
   return (
     <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2000,display:'flex',flexDirection:'column'}}>
-      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0,position:'relative',zIndex:10}}>
-        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation',WebkitTapHighlightColor:'transparent',minWidth:60,minHeight:44,display:'flex',alignItems:'center'}}>← Back</button>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0,zIndex:2001,position:'relative'}}>
+        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation',minWidth:60,minHeight:44,display:'flex',alignItems:'center'}}>← Back</button>
         <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
-        <button onClick={handlePrint} style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44,WebkitTapHighlightColor:'transparent'}}>🖨️ Print / PDF</button>
+        <button onClick={handlePrint} style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44}}>🖨️ Print / PDF</button>
       </div>
-      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}} dangerouslySetInnerHTML={{__html:html}}/>
+      <div style={{flex:1,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{color:T.t3,fontSize:14,textAlign:'center',padding:24}}>
+          <div style={{fontSize:40,marginBottom:12}}>📄</div>
+          <div style={{fontWeight:700,marginBottom:6,color:T.t1}}>Report ready</div>
+          <div>Tap <strong>Print / PDF</strong> above to open the iOS print sheet.</div>
+          <div style={{marginTop:8,color:T.t4,fontSize:12}}>From the print sheet, tap the PDF icon or the Share button to send via email, text, or AirDrop.</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4995,9 +5019,9 @@ function App(){
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
 
-  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>;
-
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
+
+  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>;
 
   if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);setOppNick('');}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
 
