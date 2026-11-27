@@ -1048,7 +1048,7 @@ function SaveModal(props){
           <button onClick={onCancel} style={{flex:1,padding:'14px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer',fontWeight:600}}>Cancel</button>
           <button onClick={function(){onSave({label:lbl.trim()});}} style={{flex:2,padding:'14px 0',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:17,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase'}}>💾 Save</button>
         </div>
-        {sessionType==='Game'&&<button onClick={function(){onSave({label:lbl.trim(),exportAfter:true});}} style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:16,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',marginTop:4}}>💾 Save &amp; Export Report</button>}
+        {sessionType==='Game'&&<div style={{textAlign:'center',marginTop:8,fontSize:12,color:T.t4,letterSpacing:0.5}}>📄 Export Report available in History after saving</div>}
       </div>
     </div>
   );
@@ -2931,7 +2931,7 @@ function Tracker(props){
   var numPeriods=props.numPeriods||4;
   var toH1Cfg=props.toH1||1;
   var toH2Cfg=props.toH2||2;
-  var onBack=props.onBack,onPersist=props.onPersist;
+  var onBack=props.onBack,onPersist=props.onPersist,onSaved=props.onSaved||function(){};
   var isLandscape=useIsLandscape();
   var SK=TK(teamMeta.id);
   var isGame=sessionType==='Game';
@@ -3373,13 +3373,10 @@ function Tracker(props){
         return;
       }
       // Also generate the report if requested (secondary — cloud save already succeeded)
-      if(exportAfter&&isGame){
-        var preExportSess=ns.filter(function(s){return s.sessionType==='Game'&&s.label===label&&s.date===date;});
-        if(preExportSess.length>0){try{generateReport(preExportSess,players,teamMeta);}catch(e){}}
-      }
       setSessions(ns);setPDrafts({});
       if(isGame) setGs(makeInitGS());
       setSaving(false);setView('history');
+      onSaved({players:players,sessions:ns});
       clearTimeout(ntR.current);
       setNotice({label:'✓ Saved to cloud!',make:true});
       ntR.current=setTimeout(function(){setNotice(null);},2500);
@@ -4744,6 +4741,12 @@ function App(){
       sessions={teamData.sessions||[]}
       onBack={handleBack}
       onPersist={function(u){onMeta(activeTeam.id,u);}}
+      onSaved={function(data){
+        var current=getTeamFullData(activeTeam.id);
+        var merged=Object.assign({},current,{players:data.players,sessions:data.sessions});
+        lsSet(TK(activeTeam.id),merged);
+        setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
+      }}
     />
   );
 }
