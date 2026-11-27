@@ -57,12 +57,32 @@ function fbSet(path,data){
     body:JSON.stringify(data)
   }).then(function(r){return r.ok;}).catch(function(){return false;});
 }
+function fbPatch(path,data){
+  return fetch(FB_URL+path+'.json',{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(data)
+  }).then(function(r){return r.ok;}).catch(function(){return false;});
+}
 function fbDel(path){
   return fetch(FB_URL+path+'.json',{method:'DELETE'}).catch(function(){});
 }
 
+// ── Device identity ────────────────────────────────────────────────────────────
+// Each device gets a stable random ID stored in localStorage.
+// All team-list operations use the per-device path.
+var DEVICE_ID_KEY='shottracker-device-id';
+function getDeviceId(){
+  var id=localStorage.getItem(DEVICE_ID_KEY);
+  if(!id){id=Math.random().toString(36).slice(2,9)+Math.random().toString(36).slice(2,9);localStorage.setItem(DEVICE_ID_KEY,id);}
+  return id;
+}
+
 // Firebase team key — same structure as localStorage but under /teams/
 function fbTeamPath(id){return '/teams/'+id.replace(/[.#$\[\]]/g,'_');}
+
+// Per-device team list path
+function fbDeviceListPath(devId){return '/deviceteams/'+(devId||getDeviceId());}
 
 // Save full team data to Firebase (returns promise resolving to true/false)
 function fbSaveTeam(id,data){return fbSet(fbTeamPath(id),data);}
@@ -70,9 +90,32 @@ function fbSaveTeam(id,data){return fbSet(fbTeamPath(id),data);}
 // Load full team data from Firebase
 function fbLoadTeam(id){return fbGet(fbTeamPath(id));}
 
-// Save teams list to Firebase
-function fbSaveTeamList(list){return fbSet('/teamlist',list);}
-function fbLoadTeamList(){return fbGet('/teamlist');}
+// Save device team list to Firebase
+function fbSaveTeamList(list){return fbSet(fbDeviceListPath(),list);}
+function fbLoadTeamList(){return fbGet(fbDeviceListPath());}
+
+// ── Join code helpers ──────────────────────────────────────────────────────────
+// Join codes are 6-char alphanumeric stored at /joincodes/{code} = {teamId, teamName, createdAt}
+function makeJoinCode(){
+  var chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var code='';
+  for(var i=0;i<6;i++) code+=chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+function fbGetJoinCode(code){return fbGet('/joincodes/'+code);}
+function fbSetJoinCode(code,data){return fbSet('/joincodes/'+code,data);}
+
+// Get or create a join code for a team. Stores it at /teamjoincodes/{teamId} so we can re-fetch it.
+function fbGetOrCreateJoinCode(teamId,teamName){
+  return fbGet('/teamjoincodes/'+teamId).then(function(existing){
+    if(existing&&existing.code) return existing.code;
+    var code=makeJoinCode();
+    var data={teamId:teamId,teamName:teamName,createdAt:new Date().toISOString()};
+    return fbSetJoinCode(code,data).then(function(){
+      return fbSet('/teamjoincodes/'+teamId,{code:code});
+    }).then(function(){return code;});
+  });
+}
 
 // ── LocalStorage (cache only — not authoritative) ─────────────────────────────
 function lsGet(k){try{var v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
@@ -4491,7 +4534,7 @@ function LoadingAnimation(props){
 }
 
 function TeamSelector(props){
-  var teams=props.teams,onSelect=props.onSelect,onCreate=props.onCreate,onEdit=props.onEdit,onDelete=props.onDelete,onImport=props.onImport;
+  var teams=props.teams,onSelect=props.onSelect,onCreate=props.onCreate,onEdit=props.onEdit,onDelete=props.onDelete,onImport=props.onImport,onJoinTeam=props.onJoinTeam;
   var crState=useState(false);var cr=crState[0],setCr=crState[1];
   var etState=useState(null);var et=etState[0],setEt=etState[1];
   var enState=useState('');var en=enState[0],setEn=enState[1];
@@ -4502,6 +4545,15 @@ function TeamSelector(props){
   var helpState=useState(false);var helpOpen=helpState[0],setHelpOpen=helpState[1];
   var tabState=useState('teams');var tab=tabState[0],setTab=tabState[1];
   var histTeamState=useState(null);var histTeam=histTeamState[0],setHistTeam=histTeamState[1];
+  // Join flow state
+  var joinOpenState=useState(false);var joinOpen=joinOpenState[0],setJoinOpen=joinOpenState[1];
+  var joinCodeState=useState('');var joinCode=joinCodeState[0],setJoinCode=joinCodeState[1];
+  var joinStatusState=useState(null);var joinStatus=joinStatusState[0],setJoinStatus=joinStatusState[1];
+  var joinLoadingState=useState(false);var joinLoading=joinLoadingState[0],setJoinLoading=joinLoadingState[1];
+  // Share code state
+  var shareTeamState=useState(null);var shareTeam=shareTeamState[0],setShareTeam=shareTeamState[1];
+  var shareCodeState=useState(null);var shareCode=shareCodeState[0],setShareCode=shareCodeState[1];
+  var shareLoadingState=useState(false);var shareLoading=shareLoadingState[0],setShareLoading=shareLoadingState[1];
   var fileRef=useRef(null);
   var logoRef=useRef(null);
   var TC=['#dc2626','#2563eb','#16a34a','#7c3aed','#d97706','#0891b2','#9d174d','#374151'];
@@ -4531,6 +4583,25 @@ function TeamSelector(props){
   function tc(id){return TC[parseInt(id.slice(-2),36)%TC.length];}
 
   function getTeamData(team){var d=lsGet(TK(team.id))||{};return {players:d.players||[],sessions:d.sessions||[]};}
+
+  function handleShare(t){
+    setShareTeam(t);setShareCode(null);setShareLoading(true);
+    fbGetOrCreateJoinCode(t.id,t.name).then(function(code){
+      setShareCode(code);setShareLoading(false);
+    }).catch(function(){setShareLoading(false);});
+  }
+
+  function handleJoinSubmit(){
+    if(!joinCode.trim()||joinLoading) return;
+    setJoinLoading(true);setJoinStatus(null);
+    onJoinTeam(joinCode.trim(),function(result,meta){
+      setJoinLoading(false);
+      if(result==='ok'){setJoinStatus('ok');setJoinCode('');setTimeout(function(){setJoinOpen(false);setJoinStatus(null);},1500);}
+      else if(result==='already'){setJoinStatus('already');}
+      else if(result==='not_found'){setJoinStatus('not_found');}
+      else{setJoinStatus('error');}
+    });
+  }
 
   function handleExport(){
     var keys=Object.keys(localStorage).filter(function(k){return k.indexOf('bball-')===0;});
@@ -4631,6 +4702,14 @@ function TeamSelector(props){
                 <div style={{flex:1,minWidth:0,cursor:'pointer',textAlign:'center'}} onClick={function(){onSelect(t);}}>
                   <div style={{fontSize:20,fontWeight:900,color:T.t1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.name}</div>
                 </div>
+                <button onClick={function(){handleShare(t);}}
+                  style={{width:36,height:36,borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.accent,fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,touchAction:'manipulation'}}
+                  title="Share team">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                  </svg>
+                </button>
                 <button onClick={function(){setEt(t);setEn(t.name);setEnk(t.nickname||'');setEl(t.logo||'🏀');setCd(false);}}
                   style={{width:36,height:36,borderRadius:10,border:'1px solid '+T.border,background:T.card,color:T.t3,fontSize:17,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,touchAction:'manipulation'}}>✏️</button>
               </div>
@@ -4638,10 +4717,12 @@ function TeamSelector(props){
           );
         })}
 
-        {/* + Add Team centered below list */}
-        <div style={{display:'flex',justifyContent:'center',marginTop:4}}>
+        {/* + Add Team and Join Team buttons */}
+        <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:4,flexWrap:'wrap'}}>
           <button onClick={function(){setCr(true);}}
-            style={{padding:'14px 36px',borderRadius:14,border:'none',background:T.accent,color:'#fff',fontSize:17,fontWeight:900,letterSpacing:3,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 20px rgba(255,107,53,0.35)',touchAction:'manipulation'}}>＋ Add Team</button>
+            style={{padding:'14px 28px',borderRadius:14,border:'none',background:T.accent,color:'#fff',fontSize:17,fontWeight:900,letterSpacing:3,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 20px rgba(108,172,228,0.35)',touchAction:'manipulation'}}>＋ Add Team</button>
+          <button onClick={function(){setJoinOpen(true);setJoinCode('');setJoinStatus(null);}}
+            style={{padding:'14px 22px',borderRadius:14,border:'2px solid '+T.accent,background:'transparent',color:T.accent,fontSize:17,fontWeight:900,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',touchAction:'manipulation'}}>🔗 Join Team</button>
         </div>
       </div>
 
@@ -4652,6 +4733,62 @@ function TeamSelector(props){
       </div>
 
       {cr&&<MultiStepTeamModal onDone={function(name,coaches,players){setCr(false);onCreate(name,coaches,players);}} onCancel={function(){setCr(false);}}/>}
+
+      {/* ── Join Team Modal ── */}
+      {joinOpen&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+          <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:360,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:16,animation:'popin 0.15s ease'}}>
+            <div style={{fontSize:18,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:1}}>🔗 Join a Team</div>
+            <div style={{fontSize:14,color:T.t3,textAlign:'center',lineHeight:1.6}}>Enter the 6-character code from the team owner to add their team to your app.</div>
+            <input
+              value={joinCode}
+              onChange={function(e){setJoinCode(e.target.value.toUpperCase().slice(0,6));setJoinStatus(null);}}
+              onKeyDown={function(e){if(e.key==='Enter') handleJoinSubmit();}}
+              maxLength={6}
+              placeholder="ABC123"
+              style={{width:'100%',boxSizing:'border-box',background:T.bg,border:'2px solid '+(joinStatus==='not_found'||joinStatus==='error'?T.red:joinStatus==='ok'?T.green:T.border),borderRadius:12,padding:'14px',color:T.t1,fontSize:28,fontWeight:900,outline:'none',textAlign:'center',letterSpacing:6,fontFamily:'monospace'}}
+            />
+            {joinStatus==='ok'&&<div style={{textAlign:'center',color:T.green,fontWeight:700,fontSize:15}}>✓ Team added!</div>}
+            {joinStatus==='already'&&<div style={{textAlign:'center',color:'#f59e0b',fontWeight:700,fontSize:15}}>You already have this team.</div>}
+            {joinStatus==='not_found'&&<div style={{textAlign:'center',color:T.red,fontWeight:700,fontSize:15}}>Code not found — check and try again.</div>}
+            {joinStatus==='error'&&<div style={{textAlign:'center',color:T.red,fontWeight:700,fontSize:15}}>Connection error — try again.</div>}
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={function(){setJoinOpen(false);setJoinCode('');setJoinStatus(null);}} style={{flex:1,padding:'13px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer',fontWeight:600}}>Cancel</button>
+              <button onClick={handleJoinSubmit} disabled={joinCode.length<4||joinLoading} style={{flex:2,padding:'13px 0',borderRadius:12,border:'none',background:joinCode.length>=4&&!joinLoading?T.accent:'#1e1e1e',color:joinCode.length>=4&&!joinLoading?'#000':T.t4,fontSize:16,fontWeight:900,cursor:joinCode.length>=4&&!joinLoading?'pointer':'default',letterSpacing:2,textTransform:'uppercase'}}>
+                {joinLoading?'Joining…':'Join'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Share Team Modal ── */}
+      {shareTeam&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
+          <div style={{background:T.card,borderRadius:20,padding:24,width:'100%',maxWidth:360,boxShadow:T.shadowMd,display:'flex',flexDirection:'column',gap:16,animation:'popin 0.15s ease'}}>
+            <div style={{fontSize:18,fontWeight:900,color:T.t1,textAlign:'center',letterSpacing:1}}>Share "{shareTeam.name}"</div>
+            <div style={{fontSize:14,color:T.t3,textAlign:'center',lineHeight:1.6}}>Send this code to anyone. They open ShotTracker, tap <strong style={{color:T.t2}}>Join Team</strong>, and enter the code to access this team on their device.</div>
+            {shareLoading?(
+              <div style={{textAlign:'center',padding:'20px 0',color:T.t4,fontSize:15}}>Generating code…</div>
+            ):(
+              <div style={{background:T.bg,borderRadius:14,padding:'20px 10px',textAlign:'center',border:'2px solid '+T.accent}}>
+                <div style={{fontSize:38,fontWeight:900,letterSpacing:10,color:T.t1,fontFamily:'monospace'}}>{shareCode}</div>
+                <div style={{fontSize:12,color:T.t4,marginTop:6,letterSpacing:1}}>Tap to copy</div>
+              </div>
+            )}
+            {shareCode&&(
+              <button onClick={function(){
+                if(navigator.clipboard){navigator.clipboard.writeText(shareCode).catch(function(){});}
+                var el=document.createElement('textarea');el.value=shareCode;document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el);
+              }} style={{padding:'11px 0',borderRadius:12,border:'none',background:T.accent,color:'#000',fontSize:16,fontWeight:900,cursor:'pointer',letterSpacing:2,textTransform:'uppercase'}}>
+                📋 Copy Code
+              </button>
+            )}
+            <div style={{fontSize:12,color:T.t4,textAlign:'center',lineHeight:1.6}}>Both devices will see live game data. This code is permanent — share it anytime.</div>
+            <button onClick={function(){setShareTeam(null);setShareCode(null);}} style={{padding:'11px 0',borderRadius:12,border:'1px solid '+T.border,background:T.card,color:T.t2,fontSize:16,cursor:'pointer',fontWeight:600}}>Done</button>
+          </div>
+        </div>
+      )}
 
       {et&&(
         <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:20}}>
@@ -5009,17 +5146,19 @@ function App(){
   },[]);
 
   useEffect(function(){
+    // Ensure device ID exists
+    getDeviceId();
     fbLoadTeamList().then(function(fbTeams){
       if(fbTeams&&Array.isArray(fbTeams)&&fbTeams.length>0){
-        // Firebase has data — use it as source of truth
+        // Device list exists in Firebase — use it as source of truth
         setTeams(fbTeams);
         lsSet(TLK,fbTeams);
         setFbLoaded(true);
       } else {
-        // Firebase is empty — check localStorage for existing data to migrate
+        // No device list yet — check localStorage for existing data to migrate
         var lsTeams=lsGet(TLK)||[];
         if(lsTeams.length>0){
-          // Migrate: push teams list + each team's full data up to Firebase
+          // Migrate: push teams list + each team's full data up to Firebase under this device
           var migrationPromises=lsTeams.map(function(t){
             var teamData=lsGet(TK(t.id));
             if(teamData){
@@ -5031,7 +5170,7 @@ function App(){
             return fbSaveTeamList(lsTeams);
           }).then(function(ok){
             if(ok){
-              console.log('[ShotTracker] Migrated '+lsTeams.length+' team(s) to Firebase.');
+              console.log('[ShotTracker] Migrated '+lsTeams.length+' team(s) to Firebase for this device.');
             }
           });
           setTeams(lsTeams); // show teams immediately while migration runs
@@ -5075,13 +5214,32 @@ function App(){
   }
   function onEdit(id,name,logo,nickname){var upd={name:name,logo:logo,nickname:nickname||''};saveTeams(teams.map(function(t){return t.id===id?Object.assign({},t,upd):t;}));if(activeTeam&&activeTeam.id===id) setActiveTeam(function(a){return Object.assign({},a,upd);});}
   function onDelete(id){
+    // Only remove from this device's list — don't delete shared Firebase team data
     saveTeams(teams.filter(function(t){return t.id!==id;}));
     lsDel(TK(id));
-    fbDel(fbTeamPath(id));
     setTeamDataCache(function(c){var n=Object.assign({},c);delete n[id];return n;});
     if(activeTeam&&activeTeam.id===id){setActiveTeam(null);setSessionType(null);setOpponent(null);setOppNick('');}
   }
   function onImport(nt){setTeams(nt);}
+
+  // Join a team by code — looks up the team in Firebase and adds it to this device's list
+  function onJoinTeam(code,cb){
+    var clean=code.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    fbGetJoinCode(clean).then(function(data){
+      if(!data||!data.teamId){cb&&cb('not_found');return;}
+      var already=teams.some(function(t){return t.id===data.teamId;});
+      if(already){cb&&cb('already');return;}
+      fbLoadTeam(data.teamId).then(function(teamData){
+        if(!teamData||!teamData.players){cb&&cb('not_found');return;}
+        var meta={id:data.teamId,name:data.teamName||teamData.name||'Shared Team',createdAt:new Date().toISOString(),playerCount:(teamData.players||[]).length,sessionCount:(teamData.sessions||[]).length,totalPoints:0,joined:true};
+        lsSet(TK(data.teamId),teamData);
+        setTeamDataCache(function(c){return Object.assign({},c,{[data.teamId]:teamData});});
+        var newList=teams.concat([meta]);
+        saveTeams(newList);
+        cb&&cb('ok',meta);
+      });
+    }).catch(function(){cb&&cb('error');});
+  }
   function onMeta(id,u){
     setTeams(function(prev){
       var n=prev.map(function(t){return t.id===id?Object.assign({},t,u):t;});
@@ -5109,7 +5267,7 @@ function App(){
   // screen stays mounted and its local state (which game is open, etc.) is
   // fully preserved when the report is closed.
   function renderMain(){
-    if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);setOppNick('');}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
+    if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);setOppNick('');}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport} onJoinTeam={onJoinTeam}/>;
 
     if(!sessionType){
       var td=getTeamFullData(activeTeam.id);
