@@ -1063,7 +1063,7 @@ function HistoryView(props){
             </div>
           )}
         </div>
-        <button onClick={function(){generateReport(gSessGroup,players,teamMeta,gKey);}} style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:16,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>📄 Export Game Stats</button>
+        <button onClick={function(){generateReport(gSessGroup,players,teamMeta);}} style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:16,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>📄 Export Game Stats</button>
       </div>
     );
   }
@@ -1087,7 +1087,7 @@ function HistoryView(props){
     var pgFTpct=pgFT.length?Math.round(pgFtm/pgFT.length*100)+'%':'—';
     function handleSharePlayer(){
       // Use generateReport for a single player session so shot chart SVG is available
-      generateReport([pgSess],players,teamMeta,null);
+      generateReport([pgSess],players,teamMeta);
     }
     return (
       <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -1694,7 +1694,6 @@ function TeamHistoryPage(props){
   var teamMeta=props.teamMeta,players=props.players,sessions=props.sessions;
   var onDelSession=props.onDelSession,onClose=props.onClose;
   var defaultSession=props.defaultSession||null;
-  var returnGameKey=props.returnGameKey||null;
 
   // Build unique game events (group sessions by date+opponent+label)
   var gSessions=sessions.filter(function(s){return s.sessionType==='Game';});
@@ -1716,18 +1715,11 @@ function TeamHistoryPage(props){
     }
   });
 
-  // Determine initial selected game — from returnGameKey (back from report) or defaultSession
-  var initSelectedGame=null;
-  if(returnGameKey){
-    initSelectedGame=games.find(function(g){return g.key===returnGameKey;})||null;
-  } else if(defaultSession){
-    initSelectedGame=games.find(function(g){return g.sessions.some(function(s){return s.id===defaultSession.id;});})||null;
-  }
-  var viewGameState=useState(initSelectedGame?'game':null);
+  var viewGameState=useState(defaultSession?'game':null);
   var viewGame=viewGameState[0],setViewGame=viewGameState[1];
 
   // Currently selected game
-  var selectedGameState=useState(initSelectedGame);
+  var selectedGameState=useState(defaultSession?games.find(function(g){return g.sessions.some(function(s){return s.id===defaultSession.id;});})||null:null);
   var selectedGame=selectedGameState[0],setSelectedGame=selectedGameState[1];
 
   if(viewGame==='game'&&selectedGame){
@@ -2030,8 +2022,6 @@ function PlayerStatsPage(props){
 // ── Session Type Screen ────────────────────────────────────────────────────────
 function SessionTypeScreen(props){
   var teamMeta=props.teamMeta,teamData=props.teamData,onStartSession=props.onStartSession,onUpdateData=props.onUpdateData,onBack=props.onBack;
-  var returnGameKey=props.returnGameKey||null;
-  var onReturnGameKeyConsumed=props.onReturnGameKeyConsumed||function(){};
   var players=teamData.players||[];
   var schedule=teamData.schedule||[];
   var coaches=teamData.coaches||{head:emptyCoach(),assistants:[]};
@@ -2042,12 +2032,7 @@ function SessionTypeScreen(props){
   var editPlayerState=useState(null);var editPlayer=editPlayerState[0],setEditPlayer=editPlayerState[1];
   var editHeadState=useState(false);var editHead=editHeadState[0],setEditHead=editHeadState[1];
   var editAstIdxState=useState(null);var editAstIdx=editAstIdxState[0],setEditAstIdx=editAstIdxState[1];
-  // If returning from a report, auto-open history with the game key
-  var initHistory=returnGameKey?{defaultSession:null,returnGameKey:returnGameKey}:null;
-  var historyViewState=useState(initHistory);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
-  useEffect(function(){
-    if(returnGameKey){onReturnGameKeyConsumed();}
-  },[]);
+  var historyViewState=useState(null);var historyView=historyViewState[0],setHistoryView=historyViewState[1];
   var addPlayerOpenState=useState(false);var addPlayerOpen=addPlayerOpenState[0],setAddPlayerOpen=addPlayerOpenState[1];
   var addMenuState=useState(false);var addMenuOpen=addMenuState[0],setAddMenuOpen=addMenuState[1];
   var addPNumState=useState('');var addPNum=addPNumState[0],setAddPNum=addPNumState[1];
@@ -2303,7 +2288,6 @@ function SessionTypeScreen(props){
           players={players}
           sessions={teamData.sessions||[]}
           defaultSession={historyView.defaultSession}
-          returnGameKey={historyView.returnGameKey||null}
           onDelSession={function(id){
             var ns=(teamData.sessions||[]).filter(function(s){return s.id!==id;});
             onUpdateData({sessions:ns});
@@ -4129,7 +4113,7 @@ function Tracker(props){
 }
 
 // ── PDF Report Generator ───────────────────────────────────────────────────────
-function generateReport(sessions,players,teamMeta,returnKey){
+function generateReport(sessions,players,teamMeta){
   // Collect all sessions for same game (keyed by label+date+opponent)
   var gameSessions=sessions.filter(function(s){return s.sessionType==='Game';});
   if(!gameSessions.length) return;
@@ -4421,7 +4405,7 @@ function generateReport(sessions,players,teamMeta,returnKey){
   playerPages+
   '</body></html>';
 
-  var ev=new CustomEvent('showReport',{detail:{html:html,returnKey:returnKey||null}});
+  var ev=new CustomEvent('showReport',{detail:{html:html}});
   window.dispatchEvent(ev);
 }
 
@@ -4747,31 +4731,35 @@ function StorageBar(){
 // ── Report Viewer ─────────────────────────────────────────────────────────────
 function ReportViewer(props){
   var html=props.html,onClose=props.onClose;
-  var ifrRef=React.createRef();
   function handlePrint(){
-    // Call print on the iframe's own window — this IS a synchronous user gesture
-    // and triggers the native iOS print sheet (which has Save to Files as PDF + Share)
+    // Open report in a new window and print from there
+    // Using blob URL avoids the PWA popup blocker (blob: is same-origin)
     try{
-      if(ifrRef.current&&ifrRef.current.contentWindow){
-        ifrRef.current.contentWindow.print();
+      var blob=new Blob([html],{type:'text/html'});
+      var url=URL.createObjectURL(blob);
+      var w=window.open(url,'_blank');
+      if(w){
+        w.onload=function(){
+          setTimeout(function(){w.print();URL.revokeObjectURL(url);},300);
+        };
       } else {
+        // PWA blocked popup — fall back to printing current page content
+        var orig=document.body.innerHTML;
+        document.body.innerHTML='<div id="rpt-print">'+html+'</div>';
         window.print();
+        document.body.innerHTML=orig;
+        window.location.reload();
       }
-    }catch(e){ window.print(); }
+    }catch(e){}
   }
   return (
     <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2000,display:'flex',flexDirection:'column'}}>
-      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0}}>
-        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation'}}>← Back</button>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0,position:'relative',zIndex:10}}>
+        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation',WebkitTapHighlightColor:'transparent',minWidth:60,minHeight:44,display:'flex',alignItems:'center'}}>← Back</button>
         <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
-        <button onClick={handlePrint} style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1}}>🖨️ Print / PDF</button>
+        <button onClick={handlePrint} style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44,WebkitTapHighlightColor:'transparent'}}>🖨️ Print / PDF</button>
       </div>
-      <iframe
-        ref={ifrRef}
-        srcDoc={html}
-        style={{flex:1,border:'none',width:'100%'}}
-        title="Game Report"
-      />
+      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch'}} dangerouslySetInnerHTML={{__html:html}}/>
     </div>
   );
 }
@@ -4799,8 +4787,6 @@ function App(){
   var fbLoaded=fbLoadedState[0],setFbLoaded=fbLoadedState[1];
   var showingState=useState(true); var showingAnim=showingState[0],setShowingAnim=showingState[1];
   var reportHtmlState=useState(null);var reportHtml=reportHtmlState[0],setReportHtml=reportHtmlState[1];
-  var reportReturnKeyState=useState(null);var reportReturnKey=reportReturnKeyState[0],setReportReturnKey=reportReturnKeyState[1];
-  var returnGameKeyState=useState(null);var returnGameKey=returnGameKeyState[0],setReturnGameKey=returnGameKeyState[1];
   // teamDataCache: {[id]: {players,sessions,...}} — loaded from Firebase per team
   var teamDataCacheState=useState({});
   var teamDataCache=teamDataCacheState[0],setTeamDataCache=teamDataCacheState[1];
@@ -4910,7 +4896,7 @@ function App(){
   // On mount: load teams list from Firebase; if Firebase is empty but localStorage
   // has data, migrate everything up to Firebase automatically (runs once).
   useEffect(function(){
-    function onReport(e){setReportHtml(e.detail.html);setReportReturnKey(e.detail.returnKey||null);}
+    function onReport(e){setReportHtml(e.detail.html);}
     window.addEventListener('showReport',onReport);
     return function(){window.removeEventListener('showReport',onReport);};
   },[]);
@@ -5009,11 +4995,7 @@ function App(){
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
 
-  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){
-    var rk=reportReturnKey;
-    setReportHtml(null);setReportReturnKey(null);
-    if(rk) setReturnGameKey(rk);
-  }}/>;
+  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>;
 
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
@@ -5034,8 +5016,6 @@ function App(){
       }}
       onUpdateData={handleUpdateTeamData}
       onBack={handleBack}
-      returnGameKey={returnGameKey}
-      onReturnGameKeyConsumed={function(){setReturnGameKey(null);}}
     />;
   }
 
