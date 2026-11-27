@@ -4729,44 +4729,40 @@ function StorageBar(){
 }
 
 // ── Report Viewer ─────────────────────────────────────────────────────────────
-// Inject a print-only style into the main document once
+// Print style: when printing, hide everything except the report content div.
+// Injected once into <head> so window.print() shows only the report.
 function ensurePrintStyle(){
-  if(document.getElementById('rpt-print-style')) return;
+  if(document.getElementById('rpt-ps')) return;
   var s=document.createElement('style');
-  s.id='rpt-print-style';
-  s.textContent='@media print{#root{display:none!important;}#rpt-print-frame{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;border:none!important;z-index:99999!important;}}';
+  s.id='rpt-ps';
+  s.textContent='@media print{body>*{display:none!important;}#rpt-content{display:block!important;position:static!important;}}';
   document.head.appendChild(s);
 }
 
 function ReportViewer(props){
   var html=props.html,onClose=props.onClose;
 
-  // Inject print style on first render
-  ensurePrintStyle();
-
-  // Store html in a hidden iframe so we can call print() on its window
-  // The iframe sits behind the React-rendered overlay so it doesn't block touches
   useEffect(function(){
-    var fr=document.getElementById('rpt-print-frame');
-    if(!fr){
-      fr=document.createElement('iframe');
-      fr.id='rpt-print-frame';
-      fr.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:1999;pointer-events:none;';
-      document.body.appendChild(fr);
-    }
-    // Write the report HTML into the hidden iframe
-    fr.srcdoc=html;
+    ensurePrintStyle();
+    // Create a sibling div to #root that holds the report HTML for printing.
+    // It is screen:hidden, print:visible.
+    var div=document.createElement('div');
+    div.id='rpt-content';
+    div.style.cssText='display:none;';
+    // Strip outer html/head/body tags — we only want the body content
+    var bodyMatch=html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    div.innerHTML=bodyMatch?bodyMatch[1]:html;
+    document.body.appendChild(div);
     return function(){
-      var old=document.getElementById('rpt-print-frame');
-      if(old) old.parentNode.removeChild(old);
+      var old=document.getElementById('rpt-content');
+      if(old) document.body.removeChild(old);
     };
   },[]);
 
   function handlePrint(){
-    var fr=document.getElementById('rpt-print-frame');
-    if(fr&&fr.contentWindow){
-      fr.contentWindow.print();
-    }
+    // window.print() is called directly from a button tap — valid user gesture on iOS.
+    // The @media print CSS hides #root and shows #rpt-content only.
+    window.print();
   }
 
   return (
@@ -4776,12 +4772,12 @@ function ReportViewer(props){
         <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
         <button onClick={handlePrint} style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44}}>🖨️ Print / PDF</button>
       </div>
-      <div style={{flex:1,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <div style={{color:T.t3,fontSize:14,textAlign:'center',padding:24}}>
-          <div style={{fontSize:40,marginBottom:12}}>📄</div>
-          <div style={{fontWeight:700,marginBottom:6,color:T.t1}}>Report ready</div>
-          <div>Tap <strong>Print / PDF</strong> above to open the iOS print sheet.</div>
-          <div style={{marginTop:8,color:T.t4,fontSize:12}}>From the print sheet, tap the PDF icon or the Share button to send via email, text, or AirDrop.</div>
+      <div style={{flex:1,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,padding:24}}>
+        <div style={{fontSize:48}}>📄</div>
+        <div style={{fontWeight:800,fontSize:18,color:T.t1}}>Report Ready</div>
+        <div style={{fontSize:14,color:T.t3,textAlign:'center',lineHeight:1.6,maxWidth:300}}>
+          Tap <strong style={{color:T.t1}}>Print / PDF</strong> above.<br/>
+          In the print sheet, tap the <strong style={{color:T.t1}}>PDF icon</strong> (bottom-left) to save as PDF, or the <strong style={{color:T.t1}}>Share button</strong> to send via Mail, Messages, or AirDrop.
         </div>
       </div>
     </div>
