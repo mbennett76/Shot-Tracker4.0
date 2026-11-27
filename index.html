@@ -4729,59 +4729,67 @@ function StorageBar(){
 }
 
 // ── Report Viewer ─────────────────────────────────────────────────────────────
-// Print style: when printing, hide everything except the report content div.
-// Injected once into <head> so window.print() shows only the report.
-function ensurePrintStyle(){
-  if(document.getElementById('rpt-ps')) return;
-  var s=document.createElement('style');
-  s.id='rpt-ps';
-  s.textContent='@media print{body>*{display:none!important;}#rpt-content{display:block!important;position:static!important;}}';
-  document.head.appendChild(s);
-}
-
 function ReportViewer(props){
   var html=props.html,onClose=props.onClose;
 
+  // Mount a full-screen iframe outside React's DOM tree so its content
+  // doesn't interfere with React reconciliation.
+  // Header bar is a separate fixed div above the iframe at higher z-index.
   useEffect(function(){
-    ensurePrintStyle();
-    // Create a sibling div to #root that holds the report HTML for printing.
-    // It is screen:hidden, print:visible.
-    var div=document.createElement('div');
-    div.id='rpt-content';
-    div.style.cssText='display:none;';
-    // Strip outer html/head/body tags — we only want the body content
-    var bodyMatch=html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-    div.innerHTML=bodyMatch?bodyMatch[1]:html;
-    document.body.appendChild(div);
+    // Build iframe
+    var fr=document.createElement('iframe');
+    fr.id='rpt-iframe';
+    fr.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:3000;';
+    fr.srcdoc=html;
+    document.body.appendChild(fr);
+
+    // Build header bar — plain DOM, no React, so no reconciliation issues
+    var bar=document.createElement('div');
+    bar.id='rpt-bar';
+    bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:3001;background:'+T.card+';border-bottom:1px solid '+T.border+';padding:44px 16px 12px;display:flex;align-items:center;gap:10px;box-shadow:'+T.shadow+';';
+
+    var backBtn=document.createElement('button');
+    backBtn.textContent='← Back';
+    backBtn.style.cssText='background:none;border:none;color:'+T.accent+';cursor:pointer;font-size:16px;font-weight:700;letter-spacing:1px;min-width:60px;min-height:44px;-webkit-tap-highlight-color:transparent;font-family:inherit;';
+    backBtn.onclick=function(){onClose();};
+
+    var title=document.createElement('div');
+    title.textContent='Game Report';
+    title.style.cssText='flex:1;font-size:17px;font-weight:800;color:'+T.t1+';text-align:center;';
+
+    var printBtn=document.createElement('button');
+    printBtn.textContent='🖨️ Print / PDF';
+    printBtn.style.cssText='background:'+T.accent+';border:none;color:#000;cursor:pointer;font-size:13px;font-weight:800;padding:8px 14px;border-radius:10px;min-height:44px;-webkit-tap-highlight-color:transparent;font-family:inherit;';
+    printBtn.onclick=function(){
+      // Print the iframe's content — called from a direct tap so iOS allows it
+      if(fr.contentWindow){
+        fr.contentWindow.print();
+      }
+    };
+
+    bar.appendChild(backBtn);
+    bar.appendChild(title);
+    bar.appendChild(printBtn);
+    document.body.appendChild(bar);
+
+    // Push iframe down so content isn't hidden behind the bar
+    // Wait for bar to render then measure its height
+    setTimeout(function(){
+      var h=bar.offsetHeight||88;
+      fr.style.top=h+'px';
+      fr.style.height='calc(100% - '+h+'px)';
+    },0);
+
     return function(){
-      var old=document.getElementById('rpt-content');
-      if(old) document.body.removeChild(old);
+      var oldFr=document.getElementById('rpt-iframe');
+      var oldBar=document.getElementById('rpt-bar');
+      if(oldFr) document.body.removeChild(oldFr);
+      if(oldBar) document.body.removeChild(oldBar);
     };
   },[]);
 
-  function handlePrint(){
-    // window.print() is called directly from a button tap — valid user gesture on iOS.
-    // The @media print CSS hides #root and shows #rpt-content only.
-    window.print();
-  }
-
-  return (
-    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2000,display:'flex',flexDirection:'column'}}>
-      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0,zIndex:2001,position:'relative'}}>
-        <button onClick={onClose} style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation',minWidth:60,minHeight:44,display:'flex',alignItems:'center'}}>← Back</button>
-        <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
-        <button onClick={handlePrint} style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44}}>🖨️ Print / PDF</button>
-      </div>
-      <div style={{flex:1,background:T.bg,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,padding:24}}>
-        <div style={{fontSize:48}}>📄</div>
-        <div style={{fontWeight:800,fontSize:18,color:T.t1}}>Report Ready</div>
-        <div style={{fontSize:14,color:T.t3,textAlign:'center',lineHeight:1.6,maxWidth:300}}>
-          Tap <strong style={{color:T.t1}}>Print / PDF</strong> above.<br/>
-          In the print sheet, tap the <strong style={{color:T.t1}}>PDF icon</strong> (bottom-left) to save as PDF, or the <strong style={{color:T.t1}}>Share button</strong> to send via Mail, Messages, or AirDrop.
-        </div>
-      </div>
-    </div>
-  );
+  // React renders nothing visible — the real UI is the DOM iframe+bar above
+  return null;
 }
 
 // ── App ────────────────────────────────────────────────────────────────────────
