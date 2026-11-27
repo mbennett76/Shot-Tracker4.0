@@ -3769,10 +3769,10 @@ function Tracker(props){
                       }}
                       onDoubleClick={function(){togglePlayer(p);if(activePid===p.id) setActivePid(null);}}
                       style={{width:52,height:52,borderRadius:11,position:'relative',
-                        border:isA?'2.5px solid '+col:isOn?'1.5px solid '+col+'99':'1.5px solid '+col+'2a',
-                        background:isA?col+'30':isOn?col+'18':col+'06',
-                        color:isOn?col:col+'40',
-                        fontSize:22,fontWeight:900,display:'flex',alignItems:'center',justifyContent:'center',
+                        border:isA?'2.5px solid '+col:isOn?'1.5px solid '+col+'99':'1px solid '+col+'55',
+                        background:isA?col+'30':isOn?col+'18':'transparent',
+                        color:isA?col:isOn?col:col+'55',
+                        fontSize:isOn?22:14,fontWeight:isOn?900:600,display:'flex',alignItems:'center',justifyContent:'center',
                         cursor:'pointer',userSelect:'none',WebkitUserSelect:'none',touchAction:'manipulation',
                         transition:'all 0.15s'}}>
                       {p.number}
@@ -4187,8 +4187,8 @@ function generateReport(sessions,players,teamMeta){
       var x=Math.round(s.x*scale);
       var y=Math.round(s.y*scale);
       return s.make
-        ?'<circle cx="'+x+'" cy="'+y+'" r="5" fill="#1e3a5f" opacity="0.85"/>'
-        :'<circle cx="'+x+'" cy="'+y+'" r="5" fill="none" stroke="#1e3a5f" stroke-width="2" opacity="0.75"/>';
+        ?'<circle cx="'+x+'" cy="'+y+'" r="5" fill="#6CACE4" opacity="0.95"/>'
+        :'<circle cx="'+x+'" cy="'+y+'" r="5" fill="none" stroke="#6CACE4" stroke-width="2" opacity="0.85"/>';
     }).join('');
     // FT dots mapped to foul line position on scaled court
     var ftX=Math.round(BX*scale);
@@ -4196,8 +4196,8 @@ function generateReport(sessions,players,teamMeta){
     var ftDots=ft.map(function(s,i){
       var ox=(i%2===0?-1:1)*(6+Math.floor(i/2)*14);
       return s.make
-        ?'<rect x="'+(ftX+ox-5)+'" y="'+(ftY-5)+'" width="10" height="10" rx="1" fill="#1e3a5f" opacity="0.85" transform="rotate(45 '+(ftX+ox)+' '+ftY+')"/>'
-        :'<rect x="'+(ftX+ox-5)+'" y="'+(ftY-5)+'" width="10" height="10" rx="1" fill="none" stroke="#1e3a5f" stroke-width="2" opacity="0.75" transform="rotate(45 '+(ftX+ox)+' '+ftY+')"/>';
+        ?'<rect x="'+(ftX+ox-5)+'" y="'+(ftY-5)+'" width="10" height="10" rx="1" fill="#6CACE4" opacity="0.95" transform="rotate(45 '+(ftX+ox)+' '+ftY+')"/>'
+        :'<rect x="'+(ftX+ox-5)+'" y="'+(ftY-5)+'" width="10" height="10" rx="1" fill="none" stroke="#6CACE4" stroke-width="2" opacity="0.85" transform="rotate(45 '+(ftX+ox)+' '+ftY+')"/>';
     }).join('');
     // Court lines scaled
     var kL=Math.round(KEY_L*scale),kR=Math.round(KEY_R*scale);
@@ -4227,10 +4227,10 @@ function generateReport(sessions,players,teamMeta){
 
   var playerRows=rows.map(function(r){
     var pmStr=r.pm>0?'+'+r.pm:(r.pm===0?'0':String(r.pm));
-    var pmColor=r.pm>0?T.green:r.pm<0?T.red:T.t2;
+    var pmColor=r.pm>0?T.green:r.pm<0?T.red:'#555';
     var dispName=(r.name?r.name+', ':'')+'#'+r.num;
     return '<tr>'+
-      '<td style="text-align:left;padding:5px 8px;font-size:12px;">'+dispName+'</td>'+
+      '<td style="text-align:left;padding:7px 8px;font-size:14px;">'+dispName+'</td>'+
       '<td>'+r.pts+'</td><td>'+r.pf+'</td>'+
       '<td>'+r.fgStr+'</td><td>'+r.fgPct+'</td><td>'+r.fg3Str+'</td><td>'+r.fg3Pct+'</td><td>'+r.ftStr+'</td>'+
       '<td>'+r.to+'</td><td>'+r.oReb+'</td><td>'+r.dReb+'</td><td>'+r.reb+'</td>'+
@@ -4294,9 +4294,9 @@ function generateReport(sessions,players,teamMeta){
       '</div>'+
       '<div class="chart-label">Shot chart</div>'+
       '<div class="chart-legend">'+
-        '<svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#1e3a5f"/></svg> Make &nbsp;'+
-        '<svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="none" stroke="#1e3a5f" stroke-width="1.5"/></svg> Miss &nbsp;'+
-        '<svg width="10" height="10" style="margin-left:4px"><rect x="1" y="1" width="8" height="8" rx="1" fill="#1e3a5f" transform="rotate(45 5 5)"/></svg> FT'+
+        '<svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="#6CACE4"/></svg> Make &nbsp;'+
+        '<svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="none" stroke="#6CACE4" stroke-width="1.5"/></svg> Miss &nbsp;'+
+        '<svg width="10" height="10" style="margin-left:4px"><rect x="1" y="1" width="8" height="8" rx="1" fill="#6CACE4" transform="rotate(45 5 5)"/></svg> FT'+
       '</div>'+
       shotChartSVG(sess)+
       '<div class="shot-breakdown">'+
@@ -4317,14 +4317,14 @@ function generateReport(sessions,players,teamMeta){
     '.page{width:700px;background:#fff;margin:0 auto 30px;padding:32px 36px;border-radius:8px;page-break-after:always;}'+
     '@media print{body{background:#fff;padding:0;}.page{width:100%;box-shadow:none;border-radius:0;margin:0;padding:24px 20px;page-break-after:always;}button{display:none!important;}}'+
     'h1{font-size:22px;font-weight:600;text-align:center;margin-bottom:3px;color:#111;}'+
-    'h2{font-size:14px;font-weight:600;color:#111;margin-bottom:10px;}'+
+    'h2{font-size:15px;font-weight:700;color:#111;margin-bottom:10px;}'+
     'h3{font-size:11px;color:#6b7280;text-align:center;margin-bottom:18px;font-weight:400;}'+
-    'table{width:100%;border-collapse:collapse;font-size:11.5px;}'+
-    'th{font-size:10px;font-weight:600;color:#6b7280;text-align:center;padding:5px 4px;border-bottom:1px solid #e5e7eb;}'+
-    'th.left{text-align:left;}td{text-align:center;padding:5px 4px;color:#111;border-bottom:1px solid #f3f4f6;}'+
-    'td.left{text-align:left;padding-left:8px;}tr.totals td{font-weight:600;border-top:1.5px solid #d1d5db;background:#f9fafb;}'+
+    'table{width:100%;border-collapse:collapse;font-size:14px;}'+
+    'th{font-size:12px;font-weight:700;color:#111;text-align:center;padding:7px 4px;border-bottom:2px solid #6CACE4;background:#f0f7ff;}'+
+    'th.left{text-align:left;}td{text-align:center;padding:7px 4px;color:#111;border-bottom:1px solid #e5e7eb;}'+
+    'td.left{text-align:left;padding-left:8px;}tr.totals td{font-weight:700;border-top:2px solid #6CACE4;background:#f0f7ff;}'+
     '.score-tbl{width:100%;border-collapse:collapse;margin-bottom:22px;}'+
-    '.score-tbl th{font-size:11px;font-weight:700;color:#6b7280;background:#f9fafb;padding:8px 10px;text-align:center;border:1px solid #e5e7eb;}'+
+    '.score-tbl th{font-size:12px;font-weight:700;color:#111;background:#f0f7ff;padding:8px 10px;text-align:center;border:1px solid #6CACE4;}'+
     '.score-tbl th.nc{text-align:left;min-width:140px;}'+
     '.score-tbl td{padding:10px;font-size:14px;border:1px solid #e5e7eb;text-align:center;color:#111;}'+
     '.score-tbl td.nc{text-align:left;font-weight:600;}'+
@@ -4340,18 +4340,18 @@ function generateReport(sessions,players,teamMeta){
     '.date{font-size:11px;color:#9ca3af;}'+
     '.player-page{}'+
     '.player-header{display:flex;align-items:center;gap:14px;margin-bottom:14px;}'+
-    '.player-num{width:50px;height:50px;border-radius:50%;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#fff;flex-shrink:0;}'+
-    '.p-name{font-size:16px;font-weight:600;color:#111;}.p-meta{font-size:11px;color:#6b7280;margin-top:2px;}'+
+    '.player-num{width:50px;height:50px;border-radius:50%;background:#6CACE4;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#000;flex-shrink:0;}'+
+    '.p-name{font-size:16px;font-weight:700;color:#111;}.p-meta{font-size:11px;color:#6b7280;margin-top:2px;}'+
     '.stat-pills{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px;}'+
-    '.pill{background:#f3f4f6;border-radius:20px;padding:4px 11px;font-size:11.5px;color:#6b7280;}'+
-    '.pill span{font-weight:600;color:#111;}'+
+    '.pill{background:#f0f7ff;border:1px solid #6CACE4;border-radius:20px;padding:5px 12px;font-size:12px;color:#555;}'+
+    '.pill span{font-weight:700;color:#111;}'+
     '.chart-label{font-size:13px;font-weight:600;color:#111;margin-bottom:6px;}'+
     '.chart-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:#6b7280;margin-bottom:8px;}'+
     '.shot-breakdown{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:14px;}'+
-    '.sb-cell{background:#f9fafb;border-radius:6px;padding:10px;text-align:center;}'+
-    '.sb-label{font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
-    '.sb-val{font-size:17px;font-weight:600;color:#111;}.sb-pct{font-size:11px;color:#6b7280;}'+
-  '</style></head><body><button style="position:fixed;top:16px;right:16px;padding:10px 20px;background:#1e3a5f;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;z-index:999;" onclick="window.close()">&#x2715; Close Report</button>'+
+    '.sb-cell{background:#f0f7ff;border:1px solid #6CACE4;border-radius:6px;padding:10px;text-align:center;}'+
+    '.sb-label{font-size:10px;color:#555;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}'+
+    '.sb-val{font-size:18px;font-weight:700;color:#111;}.sb-pct{font-size:12px;color:#6b7280;font-weight:600;}'+
+  '</style></head><body><button style="position:fixed;top:16px;right:16px;padding:10px 20px;background:#6CACE4;color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;z-index:999;" onclick="window.close()">&#x2715; Close Report</button>'+
   '<div class="page">'+
     '<h1>'+teamMeta.name+' <strong>'+gameScore.my+'</strong> &ndash; '+opp+' <strong>'+gameScore.opp+'</strong></h1>'+
     '<h3>'+gDate+' · ShotTracker 4.0</h3>'+
