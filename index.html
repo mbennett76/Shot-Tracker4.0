@@ -2173,7 +2173,7 @@ function SessionTypeScreen(props){
 
         {/* Roster + History chips */}
         <div style={{display:'flex',gap:10,marginTop:6}}>
-          <button onClick={function(){setActiveTab('roster');}} style={{flex:1,padding:'20px 10px',borderRadius:14,border:'none',background:'#7c3aed',color:'#fff',fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(124,58,237,0.35)',letterSpacing:1,touchAction:'manipulation'}}>👥 Roster</button>
+          <button onClick={function(){setActiveTab('roster');}} style={{flex:1,padding:'20px 10px',borderRadius:14,border:'none',background:'#A8A9AD',color:'#111',fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(168,169,173,0.35)',letterSpacing:1,touchAction:'manipulation'}}>👥 Roster</button>
           <button onClick={function(){setHistoryView({defaultSession:null,sessions:teamData.sessions||[]});}} style={{flex:1,padding:'20px 10px',borderRadius:14,border:'none',background:'#0891b2',color:'#fff',fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 2px 10px rgba(8,145,178,0.35)',letterSpacing:1,touchAction:'manipulation'}}>📊 History</button>
         </div>
       </div>
@@ -3303,12 +3303,9 @@ function Tracker(props){
   function makeInitGS(){
     var pdata={};
     initPlayers.forEach(function(p){
-      pdata[p.id]={active:p.active!==false,qs:makePeriodSlots(numPeriods)};
+      pdata[p.id]={active:false,qs:makePeriodSlots(numPeriods)};
     });
     var stints={};
-    initPlayers.filter(function(p){return p.active!==false;}).forEach(function(p){
-      stints[p.id]=[{s_my:0,s_opp:0}];
-    });
     return {q:1,myAdj:0,oppAdj:0,pdata:pdata,oppQs:makeOppSlots(numPeriods),stints:stints,playLog:[],numPeriods:numPeriods};
   }
   var gsState=useState(function(){return makeInitGS();});
