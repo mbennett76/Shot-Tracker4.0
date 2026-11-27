@@ -929,13 +929,13 @@ function HistoryView(props){
           <div style={{width:7,height:7,borderRadius:'50%',background:pCol,flexShrink:0}}/>
           <div style={{minWidth:36,fontWeight:900,fontSize:15,color:T.t1}}>#{p.number}</div>
           <div style={{flex:1,display:'flex',gap:0,justifyContent:'space-around',alignItems:'center'}}>
-            <div style={{textAlign:'center'}}><div style={{fontSize:18,fontWeight:900,color:'#d97706'}}>{pts}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>PTS</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:14,fontWeight:700,color:T.t2}}>{fg2m+fg3m}-{sh.length}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>FG</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:14,fontWeight:700,color:'#7c3aed'}}>{fg3m}-{fg3sh.length}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>3PT</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:14,fontWeight:700,color:'#d97706'}}>{ftm}-{ft.length}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>FT</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:14,fontWeight:700,color:T.t2}}>{reb}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>REB</div></div>
-            <div style={{textAlign:'center'}}><div style={{fontSize:14,fontWeight:700,color:T.t2}}>{s.ast||0}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>AST</div></div>
-            {s.plusMinus!=null&&<div style={{textAlign:'center'}}><div style={{fontSize:14,fontWeight:700,color:s.plusMinus>=0?T.green:T.red}}>{s.plusMinus>=0?'+':''}{s.plusMinus}</div><div style={{fontSize:9,color:T.t4,textTransform:'uppercase',letterSpacing:0.5}}>+/-</div></div>}
+            <div style={{flex:1,textAlign:'center'}}><div style={{fontSize:20,fontWeight:900,color:T.accent}}>{pts}</div></div>
+            <div style={{flex:1,textAlign:'center'}}><div style={{fontSize:13,fontWeight:700,color:T.t2}}>{fg2m+fg3m}-{sh.length}</div></div>
+            <div style={{flex:1,textAlign:'center'}}><div style={{fontSize:13,fontWeight:700,color:T.t2}}>{fg3m}-{fg3sh.length}</div></div>
+            <div style={{flex:1,textAlign:'center'}}><div style={{fontSize:13,fontWeight:700,color:T.t2}}>{ftm}-{ft.length}</div></div>
+            <div style={{flex:1,textAlign:'center'}}><div style={{fontSize:13,fontWeight:700,color:T.t2}}>{reb}</div></div>
+            <div style={{flex:1,textAlign:'center'}}><div style={{fontSize:13,fontWeight:700,color:T.t2}}>{s.ast||0}</div></div>
+            {s.plusMinus!=null&&<div style={{flex:1,textAlign:'center'}}><div style={{fontSize:13,fontWeight:700,color:s.plusMinus>=0?T.green:T.red}}>{s.plusMinus>=0?'+':''}{s.plusMinus}</div></div>}
           </div>
           <div style={{fontSize:16,color:T.t4,flexShrink:0}}>›</div>
         </div>
@@ -1009,8 +1009,8 @@ function HistoryView(props){
             </div>
             <div style={{overflowX:'auto'}}>
               <div style={{minWidth:320}}>
-                <div style={{display:'flex',padding:'6px 14px 6px 57px',gap:0,borderBottom:'1px solid '+T.border,background:T.bg}}>
-                  {['PTS','FG','3PT','FT','REB','AST','+/-'].map(function(h){return <div key={h} style={{flex:1,textAlign:'center',fontSize:9,color:T.t4,fontWeight:700,textTransform:'uppercase',letterSpacing:0.5}}>{h}</div>;})}
+                <div style={{display:'flex',padding:'7px 14px 7px 57px',gap:0,borderBottom:'2px solid '+T.accent,background:T.bg}}>
+                  {['PTS','FG','3PT','FT','REB','AST','+/-'].map(function(h){return <div key={h} style={{flex:1,textAlign:'center',fontSize:11,color:T.t1,fontWeight:800,textTransform:'uppercase',letterSpacing:0.5}}>{h}</div>;})}
                 </div>
                 {playerRows}
               </div>
