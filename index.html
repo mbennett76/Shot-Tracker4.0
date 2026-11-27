@@ -4732,64 +4732,73 @@ function StorageBar(){
 function ReportViewer(props){
   var html=props.html,onClose=props.onClose;
 
-  // Mount a full-screen iframe outside React's DOM tree so its content
-  // doesn't interfere with React reconciliation.
-  // Header bar is a separate fixed div above the iframe at higher z-index.
+  // Extract only the body content — safe to inject into React-managed div
+  // (injecting full <html><head><body> corrupts React's DOM)
+  var bodyMatch=html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  var bodyContent=bodyMatch?bodyMatch[1]:html;
+
+  // Also extract any <style> blocks from the report's <head> so styling works
+  var headStyles='';
+  var styleMatches=html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+  if(styleMatches){
+    styleMatches.forEach(function(s){
+      var inner=s.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+      if(inner) headStyles+=inner[1];
+    });
+  }
+
   useEffect(function(){
-    // Build iframe
-    var fr=document.createElement('iframe');
-    fr.id='rpt-iframe';
-    fr.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:3000;';
-    fr.srcdoc=html;
-    document.body.appendChild(fr);
+    // Inject report styles into head (scoped under #rpt-scroll)
+    var styleEl=document.createElement('style');
+    styleEl.id='rpt-styles';
+    styleEl.textContent=headStyles;
+    document.head.appendChild(styleEl);
 
-    // Build header bar — plain DOM, no React, so no reconciliation issues
-    var bar=document.createElement('div');
-    bar.id='rpt-bar';
-    bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:3001;background:'+T.card+';border-bottom:1px solid '+T.border+';padding:44px 16px 12px;display:flex;align-items:center;gap:10px;box-shadow:'+T.shadow+';';
-
-    var backBtn=document.createElement('button');
-    backBtn.textContent='← Back';
-    backBtn.style.cssText='background:none;border:none;color:'+T.accent+';cursor:pointer;font-size:16px;font-weight:700;letter-spacing:1px;min-width:60px;min-height:44px;-webkit-tap-highlight-color:transparent;font-family:inherit;';
-    backBtn.onclick=function(){onClose();};
-
-    var title=document.createElement('div');
-    title.textContent='Game Report';
-    title.style.cssText='flex:1;font-size:17px;font-weight:800;color:'+T.t1+';text-align:center;';
-
-    var printBtn=document.createElement('button');
-    printBtn.textContent='🖨️ Print / PDF';
-    printBtn.style.cssText='background:'+T.accent+';border:none;color:#000;cursor:pointer;font-size:13px;font-weight:800;padding:8px 14px;border-radius:10px;min-height:44px;-webkit-tap-highlight-color:transparent;font-family:inherit;';
-    printBtn.onclick=function(){
-      // Print the iframe's content — called from a direct tap so iOS allows it
-      if(fr.contentWindow){
-        fr.contentWindow.print();
-      }
-    };
-
-    bar.appendChild(backBtn);
-    bar.appendChild(title);
-    bar.appendChild(printBtn);
-    document.body.appendChild(bar);
-
-    // Push iframe down so content isn't hidden behind the bar
-    // Wait for bar to render then measure its height
-    setTimeout(function(){
-      var h=bar.offsetHeight||88;
-      fr.style.top=h+'px';
-      fr.style.height='calc(100% - '+h+'px)';
-    },0);
+    // Print style: hide everything except the report scroll div
+    var printEl=document.createElement('style');
+    printEl.id='rpt-print';
+    printEl.textContent='@media print{body>*{display:none!important;}#rpt-scroll{display:block!important;position:static!important;overflow:visible!important;height:auto!important;}}';
+    document.head.appendChild(printEl);
 
     return function(){
-      var oldFr=document.getElementById('rpt-iframe');
-      var oldBar=document.getElementById('rpt-bar');
-      if(oldFr) document.body.removeChild(oldFr);
-      if(oldBar) document.body.removeChild(oldBar);
+      var s=document.getElementById('rpt-styles');
+      var p=document.getElementById('rpt-print');
+      if(s) document.head.removeChild(s);
+      if(p) document.head.removeChild(p);
     };
   },[]);
 
-  // React renders nothing visible — the real UI is the DOM iframe+bar above
-  return null;
+  function handlePrint(){
+    // window.print() called directly from tap — works on iOS PWA
+    window.print();
+  }
+
+  function handleClose(){
+    onClose();
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,background:T.bg,zIndex:2000,display:'flex',flexDirection:'column'}}>
+      <div style={{background:T.card,borderBottom:'1px solid '+T.border,padding:'44px 16px 12px',display:'flex',alignItems:'center',gap:10,boxShadow:T.shadow,flexShrink:0,zIndex:2001,position:'relative'}}>
+        <button
+          onClick={handleClose}
+          style={{background:'none',border:'none',color:T.accent,cursor:'pointer',fontSize:16,fontWeight:700,letterSpacing:1,flexShrink:0,touchAction:'manipulation',minWidth:60,minHeight:44,display:'flex',alignItems:'center',WebkitAppearance:'none',padding:'0 4px'}}>
+          {'<'} Back
+        </button>
+        <div style={{flex:1,fontSize:17,fontWeight:800,color:T.t1,textAlign:'center'}}>Game Report</div>
+        <button
+          onClick={handlePrint}
+          style={{background:T.accent,border:'none',color:'#000',cursor:'pointer',fontSize:13,fontWeight:800,touchAction:'manipulation',padding:'8px 14px',borderRadius:10,letterSpacing:1,minHeight:44,WebkitAppearance:'none'}}>
+          Print / PDF
+        </button>
+      </div>
+      <div
+        id="rpt-scroll"
+        style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',background:'#fff',padding:'16px'}}
+        dangerouslySetInnerHTML={{__html:bodyContent}}
+      />
+    </div>
+  );
 }
 
 // ── App ────────────────────────────────────────────────────────────────────────
@@ -5025,50 +5034,61 @@ function App(){
 
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
-  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>;
+  // Render the main app screen, then overlay ReportViewer on top when active.
+  // ReportViewer is an overlay — NOT an early return — so the underlying
+  // screen stays mounted and its local state (which game is open, etc.) is
+  // fully preserved when the report is closed.
+  function renderMain(){
+    if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);setOppNick('');}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
 
-  if(!activeTeam) return <TeamSelector teams={teams} onSelect={function(t){setActiveTeam(t);setSessionType(null);setOpponent(null);setOppNick('');}} onCreate={onCreate} onEdit={onEdit} onDelete={onDelete} onImport={onImport}/>;
+    if(!sessionType){
+      var td=getTeamFullData(activeTeam.id);
+      return <SessionTypeScreen
+        teamMeta={activeTeam}
+        teamData={td}
+        onStartSession={function(type,opts){
+          setSessionType(type);
+          setOpponent(type==='Practice'?'':((opts&&opts.opponent)||'Opponent'));
+          setOppNick(type==='Practice'?'':((opts&&opts.oppNick)||''));
+          setNumPeriods((opts&&opts.numPeriods)||4);
+          setToH1Prop((opts&&opts.toH1)||1);
+          setToH2Prop((opts&&opts.toH2)||2);
+        }}
+        onUpdateData={handleUpdateTeamData}
+        onBack={handleBack}
+      />;
+    }
 
-  if(!sessionType){
-    var td=getTeamFullData(activeTeam.id);
-    return <SessionTypeScreen
-      teamMeta={activeTeam}
-      teamData={td}
-      onStartSession={function(type,opts){
-        setSessionType(type);
-        setOpponent(type==='Practice'?'':((opts&&opts.opponent)||'Opponent'));
-        setOppNick(type==='Practice'?'':((opts&&opts.oppNick)||''));
-        setNumPeriods((opts&&opts.numPeriods)||4);
-        setToH1Prop((opts&&opts.toH1)||1);
-        setToH2Prop((opts&&opts.toH2)||2);
-      }}
-      onUpdateData={handleUpdateTeamData}
-      onBack={handleBack}
-    />;
+    var teamData=getTeamFullData(activeTeam.id);
+    return (
+      <Tracker
+        key={activeTeam.id+'-'+sessionType+'-'+(opponent||'')}
+        teamMeta={activeTeam}
+        players={teamData.players||[]}
+        sessionType={sessionType}
+        opponent={opponent||''}
+        oppNick={oppNick||''}
+        numPeriods={numPeriods}
+        toH1={toH1Prop}
+        toH2={toH2Prop}
+        sessions={teamData.sessions||[]}
+        onBack={handleBack}
+        onPersist={function(u){onMeta(activeTeam.id,u);}}
+        onSaved={function(data){
+          var current=getTeamFullData(activeTeam.id);
+          var merged=Object.assign({},current,{players:data.players,sessions:data.sessions});
+          lsSet(TK(activeTeam.id),merged);
+          setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
+        }}
+      />
+    );
   }
 
-  var teamData=getTeamFullData(activeTeam.id);
   return (
-    <Tracker
-      key={activeTeam.id+'-'+sessionType+'-'+(opponent||'')}
-      teamMeta={activeTeam}
-      players={teamData.players||[]}
-      sessionType={sessionType}
-      opponent={opponent||''}
-      oppNick={oppNick||''}
-      numPeriods={numPeriods}
-      toH1={toH1Prop}
-      toH2={toH2Prop}
-      sessions={teamData.sessions||[]}
-      onBack={handleBack}
-      onPersist={function(u){onMeta(activeTeam.id,u);}}
-      onSaved={function(data){
-        var current=getTeamFullData(activeTeam.id);
-        var merged=Object.assign({},current,{players:data.players,sessions:data.sessions});
-        lsSet(TK(activeTeam.id),merged);
-        setTeamDataCache(function(c){return Object.assign({},c,{[activeTeam.id]:merged});});
-      }}
-    />
+    <div>
+      {renderMain()}
+      {reportHtml&&<ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>}
+    </div>
   );
 }
 
