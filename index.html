@@ -751,10 +751,19 @@ function HistoryView(props){
 
   var viewingGameState=useState(null);
   var viewingGame=viewingGameState[0],setViewingGame=viewingGameState[1];
+  var viewingPlayerGameState=useState(null);
+  var viewingPlayerGame=viewingPlayerGameState[0],setViewingPlayerGame=viewingPlayerGameState[1];
 
   function goPlayer(p,i){setHpData({p:p,i:i});setHv('player');}
   function goSession(s){setViewing(s);setHv('session');}
   function goGame(key){setViewingGame(key);setHv('game');}
+  function goPlayerGame(p,s,pi){setViewingPlayerGame({player:p,session:s,playerIdx:pi});setHv('playerGame');}
+
+  useEffect(function(){
+    function onReturn(e){if(e.detail&&e.detail.key){setViewingGame(e.detail.key);setHv('game');}}
+    window.addEventListener('returnToGame',onReturn);
+    return function(){window.removeEventListener('returnToGame',onReturn);};
+  },[]);
 
   var aS=sessions.reduce(function(a,s){return a.concat(s.shots||[]);},[] );
   var aF=sessions.reduce(function(a,s){return a.concat(s.ftShots||[]);},[] );
@@ -911,7 +920,7 @@ function HistoryView(props){
       var reb=(s.oReb||0)+(s.dReb||0);
       var pCol=pc(p,pi);
       return (
-        <div key={p.id} onClick={function(){goSession(s);}} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:'1px solid '+T.border,cursor:'pointer',gap:8}}>
+        <div key={p.id} onClick={function(){goPlayerGame(p,s,pi);}} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:'1px solid '+T.border,cursor:'pointer',gap:8}}>
           <div style={{width:7,height:7,borderRadius:'50%',background:pCol,flexShrink:0}}/>
           <div style={{minWidth:36,fontWeight:900,fontSize:15,color:T.t1}}>#{p.number}</div>
           <div style={{flex:1,display:'flex',gap:0,justifyContent:'space-around',alignItems:'center'}}>
@@ -1003,7 +1012,146 @@ function HistoryView(props){
             </div>
           </div>
         )}
-        <button onClick={function(){generateReport(gSessGroup,players,teamMeta);}} style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:16,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>📄 Full Game Report</button>
+        <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'14px 16px'}}>
+          <div style={{fontSize:12,color:T.t2,fontWeight:700,letterSpacing:2,textTransform:'uppercase',marginBottom:12}}>{gRef.opponent||'Opponent'} Stats</div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6,marginBottom:10}}>
+            {(function(){
+              var oppPts=gOppFinalPts;
+              var oppFGm=gOppTot.fg2m+gOppTot.fg3m;
+              var oppFGa=gOppTot.fg2a+gOppTot.fg3a;
+              var oFGpct=oppFGa>0?Math.round(oppFGm/oppFGa*100)+'%':'—';
+              var o3pct=gOppTot.fg3a>0?Math.round(gOppTot.fg3m/gOppTot.fg3a*100)+'%':'—';
+              var oFTpct=gOppTot.fta>0?Math.round(gOppTot.ftm/gOppTot.fta*100)+'%':'—';
+              var oReb=(gOppTot.oReb||0)+(gOppTot.dReb||0);
+              var items=[
+                ['PTS',oppPts,'#d97706'],
+                ['FG',oppFGm+'-'+oppFGa+' ('+oFGpct+')',T.t2],
+                ['3PT',gOppTot.fg3m+'-'+gOppTot.fg3a+' ('+o3pct+')','#7c3aed'],
+                ['FT',gOppTot.ftm+'-'+gOppTot.fta+' ('+oFTpct+')','#d97706'],
+                ['REB',oReb,T.t2],
+                ['O-REB',gOppTot.oReb||0,T.t3],
+                ['D-REB',gOppTot.dReb||0,T.t3],
+                ['TO',gOppTot.to||0,'#ef4444'],
+                ['FOUL',gOppTot.foul||0,'#f97316'],
+                ['FG2M',gOppTot.fg2m||0,T.t3],
+              ];
+              return items.map(function(item){
+                return <div key={item[0]} style={{background:T.bg,borderRadius:8,padding:'8px 4px',textAlign:'center'}}>
+                  <div style={{fontSize:9,color:T.t4,fontWeight:700,textTransform:'uppercase',letterSpacing:0.5,marginBottom:2}}>{item[0]}</div>
+                  <div style={{fontSize:item[0]==='FG'||item[0]==='3PT'||item[0]==='FT'?11:17,fontWeight:900,color:item[2]}}>{item[1]}</div>
+                </div>;
+              });
+            })()}
+          </div>
+          {(gOppData.quarters||[]).some(function(q){return q&&(q.fg2m||q.fg3m||q.ftm);})&&(
+            <div>
+              <div style={{fontSize:10,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:6}}>By Quarter</div>
+              <div style={{display:'flex',gap:4}}>
+                {gPNames.map(function(n,qi){
+                  var q=(gOppData.quarters||[])[qi]||EMPTY_OPP();
+                  var qpts=oppQPts(q);
+                  return <div key={qi} style={{flex:1,background:T.bg,borderRadius:8,padding:'6px 2px',textAlign:'center'}}>
+                    <div style={{fontSize:9,color:T.t4,fontWeight:700,textTransform:'uppercase'}}>{n}</div>
+                    <div style={{fontSize:16,fontWeight:900,color:T.t1}}>{qpts}</div>
+                    <div style={{fontSize:9,color:T.t4}}>{(q.fg2m||0)+(q.fg3m||0)}-{(q.fg2a||0)+(q.fg3a||0)}</div>
+                  </div>;
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+        <button onClick={function(){generateReport(gSessGroup,players,teamMeta,gKey);}} style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:'#1e3a5f',color:'#fff',fontSize:16,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(30,58,95,0.25)'}}>📄 Export Game Stats</button>
+      </div>
+    );
+  }
+
+  if(hv==='playerGame'&&viewingPlayerGame){
+    var pgPlayer=viewingPlayerGame.player;
+    var pgSess=viewingPlayerGame.session;
+    var pgIdx=viewingPlayerGame.playerIdx;
+    var pgCol=pc(pgPlayer,pgIdx);
+    var pgSh=pgSess.shots||[];
+    var pgFT=pgSess.ftShots||[];
+    var pgFg2=pgSh.filter(function(x){return x.type!=='3-Pointer';});
+    var pgFg3=pgSh.filter(function(x){return x.type==='3-Pointer';});
+    var pgFg2m=pgFg2.filter(function(x){return x.make;}).length;
+    var pgFg3m=pgFg3.filter(function(x){return x.make;}).length;
+    var pgFtm=pgFT.filter(function(x){return x.make;}).length;
+    var pgPts=calcPts(pgSh,pgFT);
+    var pgReb=(pgSess.oReb||0)+(pgSess.dReb||0);
+    var pgFGpct=pgSh.length?Math.round(pgSh.filter(function(x){return x.make;}).length/pgSh.length*100)+'%':'—';
+    var pgFg3pct=pgFg3.length?Math.round(pgFg3m/pgFg3.length*100)+'%':'—';
+    var pgFTpct=pgFT.length?Math.round(pgFtm/pgFT.length*100)+'%':'—';
+    function handleSharePlayer(){
+      var playerHtml='<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>#'+pgPlayer.number+' '+(pgPlayer.name||'Player')+' — Game Report</title><style>body{margin:0;padding:16px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f8fafc;color:#1e293b;}h1{font-size:22px;font-weight:900;margin:0 0 4px;}h2{font-size:14px;font-weight:600;color:#64748b;margin:0 0 16px;}.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}.stat-box{background:#fff;border-radius:10px;padding:12px 8px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.08);}.stat-num{font-size:26px;font-weight:900;color:#1e293b;}.stat-label{font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;}.stat-sub{font-size:11px;color:#64748b;margin-top:2px;}.court-wrap{background:#fff;border-radius:10px;padding:12px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08);}.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:8px;}.footer{text-align:center;font-size:11px;color:#94a3b8;margin-top:16px;}</style></head><body>'+
+        '<h1>#'+pgPlayer.number+(pgPlayer.name?' '+pgPlayer.name:'')+'</h1>'+
+        '<h2>vs '+(pgSess.opponent||'Opponent')+' · '+fmtDate(pgSess.date)+'</h2>'+
+        '<div class="stat-grid">'+
+          '<div class="stat-box"><div class="stat-num" style="color:#d97706">'+pgPts+'</div><div class="stat-label">PTS</div></div>'+
+          '<div class="stat-box"><div class="stat-num">'+pgReb+'</div><div class="stat-label">REB</div><div class="stat-sub">'+(pgSess.oReb||0)+'O / '+(pgSess.dReb||0)+'D</div></div>'+
+          '<div class="stat-box"><div class="stat-num">'+(pgSess.ast||0)+'</div><div class="stat-label">AST</div></div>'+
+          (pgSess.plusMinus!=null?'<div class="stat-box"><div class="stat-num" style="color:'+(pgSess.plusMinus>=0?'#16a34a':'#dc2626')+'">'+(pgSess.plusMinus>=0?'+':'')+pgSess.plusMinus+'</div><div class="stat-label">+/-</div></div>':'<div class="stat-box"><div class="stat-num">'+(pgSess.stl||0)+'</div><div class="stat-label">STL</div></div>')+
+        '</div>'+
+        '<div class="stat-grid">'+
+          '<div class="stat-box"><div class="stat-num">'+pgFg2m+'-'+pgFg2.length+'</div><div class="stat-label">FG2</div><div class="stat-sub">'+pgFGpct+'</div></div>'+
+          '<div class="stat-box"><div class="stat-num" style="color:#7c3aed">'+pgFg3m+'-'+pgFg3.length+'</div><div class="stat-label">3PT</div><div class="stat-sub">'+pgFg3pct+'</div></div>'+
+          '<div class="stat-box"><div class="stat-num">'+pgFtm+'-'+pgFT.length+'</div><div class="stat-label">FT</div><div class="stat-sub">'+pgFTpct+'</div></div>'+
+          '<div class="stat-box"><div class="stat-num">'+(pgSess.blk||0)+'</div><div class="stat-label">BLK</div></div>'+
+        '</div>'+
+        '<div class="court-wrap"><div class="section-title">Shot Chart</div>'+shotChartSVG(pgSess)+'</div>'+
+        '<div class="footer">ShotTracker · Generated '+new Date().toLocaleDateString()+'</div>'+
+        '</body></html>';
+      var w=window.open('','_blank');
+      if(w){w.document.write(playerHtml);w.document.close();setTimeout(function(){w.print();},400);}
+    }
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <button onClick={function(){setHv('game');}} style={{background:'none',border:'none',color:T.green,cursor:'pointer',fontSize:14,letterSpacing:2,padding:0,textTransform:'uppercase',textAlign:'left',fontWeight:700}}>← Game</button>
+        <div style={{background:T.card,borderRadius:12,border:'2px solid '+pgCol+'44',boxShadow:T.shadow,padding:'16px 18px',textAlign:'center'}}>
+          <div style={{width:36,height:36,borderRadius:'50%',background:pgCol+'22',border:'2px solid '+pgCol,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 6px'}}>
+            <span style={{fontSize:16,fontWeight:900,color:pgCol}}>#{pgPlayer.number}</span>
+          </div>
+          {pgPlayer.name&&<div style={{fontSize:16,fontWeight:800,color:T.t1,marginBottom:2}}>{pgPlayer.name}</div>}
+          <div style={{fontSize:12,color:T.t4}}>vs {pgSess.opponent||'Opponent'} · {fmtDate(pgSess.date)}</div>
+          {pgSess.plusMinus!=null&&<div style={{marginTop:8,display:'inline-block',padding:'4px 14px',borderRadius:20,background:pgSess.plusMinus>=0?T.greenL:T.redL,color:pgSess.plusMinus>=0?T.green:T.red,fontSize:16,fontWeight:900}}>{pgSess.plusMinus>=0?'+':''}{pgSess.plusMinus} +/-</div>}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+          {[
+            {label:'PTS',val:pgPts,color:'#d97706',sub:null},
+            {label:'REB',val:pgReb,color:T.t1,sub:(pgSess.oReb||0)+'O/'+( pgSess.dReb||0)+'D'},
+            {label:'AST',val:pgSess.ast||0,color:T.t1,sub:null},
+            {label:'STL',val:pgSess.stl||0,color:T.t1,sub:null},
+          ].map(function(item){return <div key={item.label} style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,padding:'12px 8px',textAlign:'center',boxShadow:T.shadow}}>
+            <div style={{fontSize:24,fontWeight:900,color:item.color}}>{item.val}</div>
+            {item.sub&&<div style={{fontSize:10,color:T.t4}}>{item.sub}</div>}
+            <div style={{fontSize:10,color:T.t4,textTransform:'uppercase',letterSpacing:0.5,fontWeight:700,marginTop:2}}>{item.label}</div>
+          </div>;})}
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}}>
+          {[
+            {label:'FG',val:(pgFg2m+pgFg3m)+'-'+pgSh.length,sub:pgFGpct,color:T.t1},
+            {label:'3PT',val:pgFg3m+'-'+pgFg3.length,sub:pgFg3pct,color:'#7c3aed'},
+            {label:'FT',val:pgFtm+'-'+pgFT.length,sub:pgFTpct,color:'#d97706'},
+          ].map(function(item){return <div key={item.label} style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,padding:'12px 8px',textAlign:'center',boxShadow:T.shadow}}>
+            <div style={{fontSize:18,fontWeight:900,color:item.color}}>{item.val}</div>
+            <div style={{fontSize:12,color:T.t4,marginTop:1}}>{item.sub}</div>
+            <div style={{fontSize:10,color:T.t4,textTransform:'uppercase',letterSpacing:0.5,fontWeight:700,marginTop:2}}>{item.label}</div>
+          </div>;})}
+        </div>
+        {GSTATS.filter(function(g){return (pgSess[g.key]||0)>0;}).length>0&&(
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center'}}>
+            {GSTATS.filter(function(g){return (pgSess[g.key]||0)>0;}).map(function(g){
+              return <div key={g.key} style={{display:'flex',alignItems:'center',gap:5,background:g.color+'15',borderRadius:20,padding:'5px 12px',border:'1px solid '+g.color+'44'}}><span style={{fontSize:13,color:T.t3}}>{g.label}</span><span style={{fontSize:15,color:T.t1,fontWeight:700,marginLeft:2}}>{pgSess[g.key]}</span></div>;
+            })}
+          </div>
+        )}
+        <div style={{background:T.card,borderRadius:12,border:'1px solid '+T.border,boxShadow:T.shadow,padding:'12px 14px'}}>
+          <div style={{fontSize:11,color:T.t4,fontWeight:700,letterSpacing:1,textTransform:'uppercase',marginBottom:8}}>Shot Chart</div>
+          <Court shots={pgSh} ftShots={pgFT} mode={null} onShot={function(){}} readOnly={true} pCol={pgCol}/>
+        </div>
+        {pgSess.quarterData&&pgSess.quarterData.length>0&&<QBreakdown quarterData={pgSess.quarterData} shots={pgSh} ftShots={pgFT}/>}
+        <button onClick={handleSharePlayer} style={{width:'100%',padding:'13px 0',borderRadius:12,border:'none',background:T.accent,color:'#fff',fontSize:16,fontWeight:700,letterSpacing:2,cursor:'pointer',textTransform:'uppercase',boxShadow:'0 4px 14px rgba(108,172,228,0.4)'}}>📤 Share Player Report</button>
+        <div style={{textAlign:'center',fontSize:11,color:T.t4,marginTop:-8}}>Opens print dialog — use Share button to send via text or email</div>
       </div>
     );
   }
@@ -3996,7 +4144,7 @@ function Tracker(props){
 }
 
 // ── PDF Report Generator ───────────────────────────────────────────────────────
-function generateReport(sessions,players,teamMeta){
+function generateReport(sessions,players,teamMeta,returnKey){
   // Collect all sessions for same game (keyed by label+date+opponent)
   var gameSessions=sessions.filter(function(s){return s.sessionType==='Game';});
   if(!gameSessions.length) return;
@@ -4288,7 +4436,7 @@ function generateReport(sessions,players,teamMeta){
   playerPages+
   '</body></html>';
 
-  var ev=new CustomEvent('showReport',{detail:{html:html}});
+  var ev=new CustomEvent('showReport',{detail:{html:html,returnKey:returnKey||null}});
   window.dispatchEvent(ev);
 }
 
@@ -4662,6 +4810,7 @@ function App(){
   var fbLoaded=fbLoadedState[0],setFbLoaded=fbLoadedState[1];
   var showingState=useState(true); var showingAnim=showingState[0],setShowingAnim=showingState[1];
   var reportHtmlState=useState(null);var reportHtml=reportHtmlState[0],setReportHtml=reportHtmlState[1];
+  var reportReturnKeyState=useState(null);var reportReturnKey=reportReturnKeyState[0],setReportReturnKey=reportReturnKeyState[1];
   // teamDataCache: {[id]: {players,sessions,...}} — loaded from Firebase per team
   var teamDataCacheState=useState({});
   var teamDataCache=teamDataCacheState[0],setTeamDataCache=teamDataCacheState[1];
@@ -4771,7 +4920,7 @@ function App(){
   // On mount: load teams list from Firebase; if Firebase is empty but localStorage
   // has data, migrate everything up to Firebase automatically (runs once).
   useEffect(function(){
-    function onReport(e){setReportHtml(e.detail.html);}
+    function onReport(e){setReportHtml(e.detail.html);setReportReturnKey(e.detail.returnKey||null);}
     window.addEventListener('showReport',onReport);
     return function(){window.removeEventListener('showReport',onReport);};
   },[]);
@@ -4870,7 +5019,11 @@ function App(){
     if(updates.players){onMeta(activeTeam.id,{playerCount:updates.players.length});}
   }
 
-  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){setReportHtml(null);}}/>;
+  if(reportHtml) return <ReportViewer html={reportHtml} onClose={function(){
+    var rk=reportReturnKey;
+    setReportHtml(null);setReportReturnKey(null);
+    if(rk) window.dispatchEvent(new CustomEvent('returnToGame',{detail:{key:rk}}));
+  }}/>;
 
   if(showingAnim) return <LoadingAnimation onDone={function(){setShowingAnim(false);}}/>;
 
